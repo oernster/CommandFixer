@@ -2,7 +2,7 @@
 
 A lightweight Go binary that auto-corrects your common typing mistakes in PowerShell before commands execute.
 
-Type `git sattus`, press Enter, and CommandFixer silently swaps it for `git status` - then runs it; with your approval.
+Type `git sattus`, press Enter, and CommandFixer silently swaps it for `git status` - then runs it, if you approve.
 
 ---
 
