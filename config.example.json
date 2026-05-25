@@ -1,0 +1,75 @@
+{
+  "typos": [
+    {
+      "from": "git sattus",
+      "to": "git status"
+    },
+    {
+      "from": "git statsu",
+      "to": "git status"
+    },
+    {
+      "from": "git satuts",
+      "to": "git status"
+    },
+    {
+      "from": "git chekout",
+      "to": "git checkout"
+    },
+    {
+      "from": "git checout",
+      "to": "git checkout"
+    },
+    {
+      "from": "git branhc",
+      "to": "git branch"
+    },
+    {
+      "from": "git comit",
+      "to": "git commit"
+    },
+    {
+      "from": "git commti",
+      "to": "git commit"
+    },
+    {
+      "from": "git pusho",
+      "to": "git push"
+    },
+    {
+      "from": "docker pss",
+      "to": "docker ps"
+    },
+    {
+      "from": "docker psa",
+      "to": "docker ps -a"
+    },
+    {
+      "from": "cd ..",
+      "to": "cd .."
+    },
+    {
+      "from": "claer",
+      "to": "clear"
+    },
+    {
+      "from": "exti",
+      "to": "exit"
+    },
+    {
+      "from": "grpe",
+      "to": "grep",
+      "regex": false
+    },
+    {
+      "from": "gti\\s+",
+      "to": "git ",
+      "regex": true
+    }
+  ],
+  "settings": {
+    "log_file": "",
+    "show_corrections": true,
+    "max_log_lines": 10000
+  }
+}

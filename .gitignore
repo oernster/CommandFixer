@@ -1,7 +1,4 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# ── Go binaries ──────────────────────────────────────────────────────────────
 *.exe
 *.exe~
 *.dll
@@ -11,22 +8,49 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
+# Coverage profiles and HTML reports
 *.out
 coverage.*
 *.coverprofile
 profile.cov
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
+# Go workspace files (local developer convenience, not project config)
 go.work
 go.work.sum
 
-# env file
-.env
+# Dependency vendor directory (uncomment if you vendor deps)
+# vendor/
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# ── Build output ──────────────────────────────────────────────────────────────
+# The compiled binary (also matched by *.exe above, but explicit is clearer)
+commandfixer.exe
+
+# ── Environment / secrets ────────────────────────────────────────────────────
+.env
+.env.local
+*.env
+
+# ── IDE and editor files ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── Windows junk ─────────────────────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ── macOS junk ───────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Claude Code local settings ───────────────────────────────────────────────
+# settings.local.json is per-user; settings.json is project-level and IS committed
+.claude/settings.local.json
