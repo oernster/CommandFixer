@@ -3,33 +3,29 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
-
-// TypoEntry represents a single typo-to-correction mapping.
-// Set Regex to true to treat From as a regular expression pattern.
-type TypoEntry struct {
-	From  string `json:"from"`
-	To    string `json:"to"`
-	Regex bool   `json:"regex,omitempty"`
-}
 
 // Settings holds global behaviour options.
 type Settings struct {
 	// LogFile is the path to the JSONL corrections log.
 	LogFile string `json:"log_file"`
-	// ShowCorrections controls whether the PS hook prints corrections.
-	ShowCorrections bool `json:"show_corrections"`
 	// MaxLogLines is a soft cap for the log file (informational; rotation not yet implemented).
 	MaxLogLines int `json:"max_log_lines"`
+	// SimilarityThreshold controls how similar a typed subcommand must be to a
+	// known subcommand before CommandFixer suggests a correction.
+	// Valid range: (0.0, 1.0]. Lower values catch more typos but risk false
+	// positives. Default: 0.6.
+	SimilarityThreshold float64 `json:"similarity_threshold"`
 }
 
 // Config is the top-level configuration structure.
 type Config struct {
-	Typos    []TypoEntry `json:"typos"`
-	Settings Settings    `json:"settings"`
+	Settings Settings `json:"settings"`
 }
 
 // DefaultConfigDir returns the path to the directory that holds CommandFixer config.
@@ -66,11 +62,11 @@ func Load(path string) (*Config, error) {
 }
 
 // LoadOrDefault loads config from path.
-// If the file does not exist, returns a default Config with no typos.
+// If the file does not exist, returns a default Config.
 // Any other read or parse error is returned as-is.
 func LoadOrDefault(path string) (*Config, error) {
 	cfg, err := Load(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return newDefault(), nil
 	}
 	return cfg, err
@@ -91,7 +87,7 @@ func Save(path string, cfg *Config) error {
 	return nil
 }
 
-// newDefault returns a Config with sensible defaults and no typo rules.
+// newDefault returns a Config with sensible defaults.
 func newDefault() *Config {
 	cfg := &Config{}
 	cfg.applyDefaults()
@@ -106,5 +102,8 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Settings.MaxLogLines == 0 {
 		c.Settings.MaxLogLines = 10000
+	}
+	if c.Settings.SimilarityThreshold <= 0 || c.Settings.SimilarityThreshold > 1 {
+		c.Settings.SimilarityThreshold = 0.6
 	}
 }

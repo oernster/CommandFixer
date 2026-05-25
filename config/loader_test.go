@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,14 +48,10 @@ func TestLoad_Success(t *testing.T) {
 	path := filepath.Join(dir, "config.json")
 
 	content := `{
-		"typos": [
-			{"from": "git sattus", "to": "git status"},
-			{"from": "ls --afl", "to": "ls -afl", "regex": false}
-		],
 		"settings": {
 			"log_file": "/tmp/test.log",
-			"show_corrections": true,
-			"max_log_lines": 500
+			"max_log_lines": 500,
+			"similarity_threshold": 0.8
 		}
 	}`
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -64,20 +62,14 @@ func TestLoad_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if len(cfg.Typos) != 2 {
-		t.Errorf("expected 2 typos, got %d", len(cfg.Typos))
-	}
-	if cfg.Typos[0].From != "git sattus" {
-		t.Errorf("unexpected From: %q", cfg.Typos[0].From)
-	}
-	if cfg.Typos[0].To != "git status" {
-		t.Errorf("unexpected To: %q", cfg.Typos[0].To)
-	}
 	if cfg.Settings.LogFile != "/tmp/test.log" {
 		t.Errorf("unexpected LogFile: %q", cfg.Settings.LogFile)
 	}
 	if cfg.Settings.MaxLogLines != 500 {
 		t.Errorf("expected MaxLogLines 500, got %d", cfg.Settings.MaxLogLines)
+	}
+	if cfg.Settings.SimilarityThreshold != 0.8 {
+		t.Errorf("expected SimilarityThreshold 0.8, got %v", cfg.Settings.SimilarityThreshold)
 	}
 }
 
@@ -87,8 +79,9 @@ func TestLoad_FileNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !os.IsNotExist(err) {
-		t.Errorf("expected IsNotExist, got: %v", err)
+	// Load wraps the error with fmt.Errorf(%w); use errors.Is to unwrap correctly.
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected fs.ErrNotExist (unwrapped), got: %v", err)
 	}
 }
 
@@ -105,12 +98,12 @@ func TestLoad_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestLoad_AppliesDefaults_WhenLogFileMissing(t *testing.T) {
+func TestLoad_AppliesDefaults_WhenFieldsMissing(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	// No log_file or max_log_lines in settings.
-	if err := os.WriteFile(path, []byte(`{"typos":[]}`), 0644); err != nil {
+	// Empty settings: all defaults should be applied.
+	if err := os.WriteFile(path, []byte(`{"settings":{}}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
@@ -123,13 +116,16 @@ func TestLoad_AppliesDefaults_WhenLogFileMissing(t *testing.T) {
 	if cfg.Settings.MaxLogLines != 10000 {
 		t.Errorf("expected default MaxLogLines 10000, got %d", cfg.Settings.MaxLogLines)
 	}
+	if cfg.Settings.SimilarityThreshold != 0.6 {
+		t.Errorf("expected default SimilarityThreshold 0.6, got %v", cfg.Settings.SimilarityThreshold)
+	}
 }
 
 func TestLoad_DoesNotOverrideExistingSettings(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	content := `{"settings":{"log_file":"/custom/path.log","max_log_lines":42}}`
+	content := `{"settings":{"log_file":"/custom/path.log","max_log_lines":42,"similarity_threshold":0.7}}`
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -143,6 +139,9 @@ func TestLoad_DoesNotOverrideExistingSettings(t *testing.T) {
 	if cfg.Settings.MaxLogLines != 42 {
 		t.Errorf("MaxLogLines overwritten; got %d", cfg.Settings.MaxLogLines)
 	}
+	if cfg.Settings.SimilarityThreshold != 0.7 {
+		t.Errorf("SimilarityThreshold overwritten; got %v", cfg.Settings.SimilarityThreshold)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +152,7 @@ func TestLoadOrDefault_FileExists(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	content := `{"typos":[{"from":"git sattus","to":"git status"}]}`
+	content := `{"settings":{"log_file":"/tmp/log","max_log_lines":100,"similarity_threshold":0.7}}`
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -161,8 +160,8 @@ func TestLoadOrDefault_FileExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(cfg.Typos) != 1 {
-		t.Errorf("expected 1 typo, got %d", len(cfg.Typos))
+	if cfg.Settings.SimilarityThreshold != 0.7 {
+		t.Errorf("expected SimilarityThreshold 0.7, got %v", cfg.Settings.SimilarityThreshold)
 	}
 }
 
@@ -176,11 +175,11 @@ func TestLoadOrDefault_FileNotFound_ReturnsDefault(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected non-nil default config")
 	}
-	if len(cfg.Typos) != 0 {
-		t.Errorf("expected empty typos, got %d", len(cfg.Typos))
-	}
 	if cfg.Settings.MaxLogLines != 10000 {
 		t.Errorf("expected default MaxLogLines 10000, got %d", cfg.Settings.MaxLogLines)
+	}
+	if cfg.Settings.SimilarityThreshold != 0.6 {
+		t.Errorf("expected default SimilarityThreshold 0.6, got %v", cfg.Settings.SimilarityThreshold)
 	}
 }
 
@@ -202,8 +201,6 @@ func TestLoadOrDefault_BadJSON_ReturnsError(t *testing.T) {
 // with an error that is NOT os.IsNotExist.
 func TestLoadOrDefault_OtherReadError(t *testing.T) {
 	t.Parallel()
-	// Passing a directory path causes os.ReadFile to return an error
-	// that is not a not-found error.
 	dirPath := t.TempDir()
 	_, err := LoadOrDefault(dirPath)
 	if err == nil {
@@ -224,12 +221,10 @@ func TestSave_Success(t *testing.T) {
 	path := filepath.Join(dir, "sub", "config.json")
 
 	cfg := &Config{
-		Typos: []TypoEntry{
-			{From: "git sattus", To: "git status"},
-		},
 		Settings: Settings{
-			LogFile:     "/tmp/log.log",
-			MaxLogLines: 100,
+			LogFile:             "/tmp/log.log",
+			MaxLogLines:         100,
+			SimilarityThreshold: 0.7,
 		},
 	}
 	if err := Save(path, cfg); err != nil {
@@ -239,11 +234,11 @@ func TestSave_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load after Save returned error: %v", err)
 	}
-	if len(loaded.Typos) != 1 {
-		t.Errorf("expected 1 typo after round-trip, got %d", len(loaded.Typos))
+	if loaded.Settings.LogFile != "/tmp/log.log" {
+		t.Errorf("unexpected LogFile after round-trip: %q", loaded.Settings.LogFile)
 	}
-	if loaded.Typos[0].From != "git sattus" {
-		t.Errorf("unexpected From after round-trip: %q", loaded.Typos[0].From)
+	if loaded.Settings.SimilarityThreshold != 0.7 {
+		t.Errorf("unexpected SimilarityThreshold after round-trip: %v", loaded.Settings.SimilarityThreshold)
 	}
 }
 
@@ -290,7 +285,29 @@ func TestNewDefault_HasNonZeroDefaults(t *testing.T) {
 	if cfg.Settings.LogFile == "" {
 		t.Error("expected non-empty LogFile from newDefault")
 	}
-	if len(cfg.Typos) != 0 {
-		t.Errorf("expected empty typos, got %d", len(cfg.Typos))
+	if cfg.Settings.SimilarityThreshold == 0 {
+		t.Error("expected non-zero SimilarityThreshold from newDefault")
+	}
+}
+
+func TestApplyDefaults_OutOfRangeThreshold_UsesDefault(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{}
+	cfg.Settings.SimilarityThreshold = 1.5 // out of range
+	cfg.applyDefaults()
+	if cfg.Settings.SimilarityThreshold != 0.6 {
+		t.Errorf("expected default 0.6 for out-of-range threshold, got %v", cfg.Settings.SimilarityThreshold)
+	}
+}
+
+func TestApplyDefaults_ValidThreshold_Preserved(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{}
+	cfg.Settings.SimilarityThreshold = 0.8
+	cfg.Settings.MaxLogLines = 100
+	cfg.Settings.LogFile = "/tmp/test.log"
+	cfg.applyDefaults()
+	if cfg.Settings.SimilarityThreshold != 0.8 {
+		t.Errorf("expected 0.8 preserved, got %v", cfg.Settings.SimilarityThreshold)
 	}
 }
