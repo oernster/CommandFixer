@@ -4,6 +4,10 @@
 // subcommands. When a typed command looks like a typo of a known subcommand
 // (within a configurable similarity threshold), Suggest returns the corrected
 // form. No user-maintained dictionary is required.
+//
+// For Windows standalone commands (dir, cd, copy, etc.), Suggest also
+// fuzzy-matches the first token against a known standalone command list
+// and corrects the command name itself when a close-enough match is found.
 package corrector
 
 import "strings"
@@ -119,6 +123,85 @@ var commandDB = map[string][]string{
 		"run", "scheduler", "secrets", "services", "source",
 		"spanner", "sql", "storage", "tasks", "version", "workflows",
 	},
+
+	// Windows package managers and CLI tools with subcommand structure.
+	"winget": {
+		"configure", "download", "export", "features", "hash",
+		"import", "install", "list", "pin", "search", "settings",
+		"show", "source", "uninstall", "upgrade", "validate",
+	},
+	"choco": {
+		"apikey", "config", "export", "feature", "find", "help",
+		"info", "install", "list", "new", "optimize", "outdated",
+		"pack", "pin", "push", "search", "setapikey", "source",
+		"sources", "sync", "template", "uninstall", "unpackself",
+		"upgrade", "version",
+	},
+	"scoop": {
+		"alias", "bucket", "cache", "cat", "checkup", "cleanup",
+		"config", "create", "depends", "download", "export", "help",
+		"hold", "home", "import", "info", "install", "list",
+		"prefix", "reset", "search", "shim", "status",
+		"unhold", "uninstall", "update", "utils", "virustotal",
+	},
+
+	// Windows built-in admin tools with subcommand structure.
+	"net": {
+		"accounts", "computer", "config", "continue", "file",
+		"group", "help", "helpmsg", "localgroup", "pause",
+		"print", "send", "session", "share", "start",
+		"statistics", "stop", "time", "use", "user", "view",
+	},
+	"sc": {
+		"boot", "config", "continue", "control", "create",
+		"delete", "description", "failure", "failureflag",
+		"lock", "pause", "qc", "qdescription", "qfailure",
+		"qfailureflag", "query", "queryex", "querylock",
+		"sdset", "sdshow", "showsid", "sidtype",
+		"start", "stop", "triggerinfo",
+	},
+	"reg": {
+		"add", "compare", "copy", "delete", "export",
+		"flags", "import", "load", "query", "restore",
+		"save", "unload",
+	},
+	"netsh": {
+		"advfirewall", "branchcache", "bridge", "dhcpclient",
+		"dnsclient", "firewall", "http", "interface",
+		"ipsec", "lan", "namespace", "netio",
+		"ras", "rpc", "trace", "wfp",
+		"winhttp", "winsock", "wlan",
+	},
+}
+
+// windowsCommands is the list of known Windows standalone commands.
+// When the first token of a command fuzzy-matches one of these entries
+// and the tool is not already a key in commandDB, Suggest corrects the
+// command name (first token) and preserves all remaining tokens verbatim.
+var windowsCommands = []string{
+	// Navigation
+	"cd", "chdir", "pushd", "popd",
+	// File operations
+	"attrib", "cipher", "compact", "copy", "del", "erase", "fc",
+	"find", "findstr", "fsutil", "icacls", "mklink", "move",
+	"recover", "ren", "rename", "replace", "robocopy", "xcopy",
+	// Directory operations
+	"dir", "md", "mkdir", "rd", "rmdir", "tree",
+	// Display / text output
+	"cls", "color", "echo", "more", "sort", "type",
+	// Disk and filesystem
+	"chkdsk", "diskpart", "format", "label", "subst",
+	// System information and diagnostics
+	"driverquery", "hostname", "ipconfig", "netstat", "nslookup",
+	"ping", "systeminfo", "tasklist", "tracert", "ver",
+	"where", "whoami",
+	// Process management
+	"start", "taskkill", "timeout",
+	// Configuration and policy
+	"bcdedit", "gpupdate", "mode", "msiexec", "path", "prompt",
+	"set", "setx", "sfc", "shutdown", "title",
+	// Miscellaneous
+	"assoc", "date", "msg", "pause", "print", "schtasks", "time",
 }
 
 // defaultThreshold is used when New receives a zero or out-of-range threshold.
@@ -143,17 +226,23 @@ func (e *Engine) Threshold() float64 {
 	return e.threshold
 }
 
-// Suggest checks whether cmd contains a recognisable typo in its subcommand
-// position. It returns the corrected form and true when a similar-enough match
-// is found in the built-in command database; otherwise it returns cmd unchanged
-// and false.
+// Suggest checks whether cmd contains a recognisable typo and returns the
+// corrected form and true when a similar-enough match is found. It returns
+// cmd unchanged and false when no correction can be made.
 //
-// Rules:
-//   - The tool name (first token) must be an exact key in commandDB.
-//   - At least two tokens must be present.
-//   - If the subcommand (second token) is already a known valid subcommand,
-//     no correction is made.
-//   - All tokens beyond the second are preserved verbatim.
+// Two correction modes are applied in order:
+//
+//  1. Subcommand correction: when the first token (tool name) is an exact key
+//     in commandDB, the second token (subcommand) is fuzzy-matched against
+//     the tool's known subcommands. All tokens beyond the second are preserved.
+//
+//  2. Standalone command correction: when the first token is not in commandDB,
+//     it is fuzzy-matched against the windowsCommands list. When a close-enough
+//     match is found the command name is corrected and all remaining tokens are
+//     preserved verbatim.
+//
+// In both modes at least two tokens must be present and the similarity must
+// meet or exceed the configured threshold.
 func (e *Engine) Suggest(cmd string) (string, bool) {
 	tokens := strings.Fields(cmd)
 	if len(tokens) < 2 {
@@ -165,7 +254,7 @@ func (e *Engine) Suggest(cmd string) (string, bool) {
 
 	subcommands, known := commandDB[tool]
 	if !known {
-		return cmd, false
+		return e.suggestStandalone(cmd, tokens)
 	}
 
 	// Already a valid subcommand: nothing to correct.
@@ -191,6 +280,38 @@ func (e *Engine) Suggest(cmd string) (string, bool) {
 	}
 
 	tokens[1] = bestMatch
+	return strings.Join(tokens, " "), true
+}
+
+// suggestStandalone attempts to correct the first token of tokens by
+// fuzzy-matching it against the windowsCommands list. It returns the corrected
+// command and true when a match at or above the threshold is found, or the
+// original cmd and false otherwise.
+func (e *Engine) suggestStandalone(cmd string, tokens []string) (string, bool) {
+	tool := tokens[0]
+
+	// Already an exact known standalone command: no correction needed.
+	for _, sc := range windowsCommands {
+		if sc == tool {
+			return cmd, false
+		}
+	}
+
+	bestMatch := ""
+	bestSim := 0.0
+	for _, sc := range windowsCommands {
+		sim := similarity(tool, sc)
+		if sim > bestSim {
+			bestSim = sim
+			bestMatch = sc
+		}
+	}
+
+	if bestSim < e.threshold || bestMatch == "" {
+		return cmd, false
+	}
+
+	tokens[0] = bestMatch
 	return strings.Join(tokens, " "), true
 }
 
