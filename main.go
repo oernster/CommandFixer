@@ -1,6 +1,6 @@
 // Command commandfixer is a PowerShell typo auto-corrector.
-// It loads a user-defined correction dictionary and fixes common typing mistakes
-// before commands execute.
+// It intercepts shell commands, fuzzy-matches subcommands against a built-in
+// database of popular CLI tools, and prompts for confirmation before correcting.
 package main
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/oernster/commandfixer/shell"
 )
 
-const appVersion = "1.0.0"
+const appVersion = "2.0.0"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -41,8 +41,12 @@ func dispatch(args []string, cfgPath string) error {
 		return nil
 	}
 	switch args[0] {
+	case "suggest":
+		return cmdSuggest(args[1:], cfgPath)
 	case "correct":
 		return cmdCorrect(args[1:], cfgPath)
+	case "log":
+		return cmdLog(args[1:], cfgPath)
 	case "install":
 		return cmdInstall(args[1:])
 	case "uninstall":
@@ -60,8 +64,31 @@ func dispatch(args []string, cfgPath string) error {
 	}
 }
 
-// cmdCorrect loads config, corrects the provided command, prints the result,
-// and logs the correction if one occurred.
+// cmdSuggest is the machine-facing command used by the PSReadLine hook.
+// It fuzzy-matches the input command and prints the corrected form to stdout
+// if a suggestion is found. Prints nothing when no correction is needed.
+func cmdSuggest(args []string, cfgPath string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("suggest: provide a command to check")
+	}
+	input := strings.Join(args, " ")
+
+	cfg, err := config.LoadOrDefault(cfgPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	eng := corrector.New(cfg.Settings.SimilarityThreshold)
+	suggestion, found := eng.Suggest(input)
+	if found {
+		fmt.Println(suggestion)
+	}
+	return nil
+}
+
+// cmdCorrect is the human-facing diagnostic command.
+// It prints the corrected form of the input command (or the input unchanged
+// when no correction is found) and logs the correction if one occurred.
 func cmdCorrect(args []string, cfgPath string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("correct: provide a command to check")
@@ -73,20 +100,38 @@ func cmdCorrect(args []string, cfgPath string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	eng, err := corrector.New(cfg)
-	if err != nil {
-		return fmt.Errorf("build corrector: %w", err)
-	}
-
-	result := eng.Correct(input)
-	fmt.Println(result.Corrected)
-
-	if result.Changed {
+	eng := corrector.New(cfg.Settings.SimilarityThreshold)
+	suggestion, found := eng.Suggest(input)
+	if found {
+		fmt.Println(suggestion)
 		log := logger.New(cfg.Settings.LogFile)
-		rule := result.RuleFrom + " -> " + result.RuleTo
-		if logErr := log.Log(result.Original, result.Corrected, rule); logErr != nil {
+		if logErr := log.Log(input, suggestion, "auto-fuzzy"); logErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not write log: %v\n", logErr)
 		}
+	} else {
+		fmt.Println(input)
+	}
+	return nil
+}
+
+// cmdLog records a correction event to the log file.
+// Called by the PSReadLine hook when the user confirms a suggestion.
+// args[0] = original command, args[1] = corrected command.
+func cmdLog(args []string, cfgPath string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("log: provide original and corrected commands")
+	}
+	original := args[0]
+	corrected := args[1]
+
+	cfg, err := config.LoadOrDefault(cfgPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	l := logger.New(cfg.Settings.LogFile)
+	if err := l.Log(original, corrected, "auto-fuzzy"); err != nil {
+		return fmt.Errorf("write log: %w", err)
 	}
 	return nil
 }
@@ -150,11 +195,14 @@ func cmdStats(cfgPath string) error {
 	return nil
 }
 
-func printUsage() {
-	fmt.Print(`commandfixer - PowerShell typo auto-corrector
+// usageText is defined as a constant to avoid fmt.Print seeing %USERPROFILE%
+// as a formatting directive (go vet false-positive on the %U sequence).
+const usageText = `commandfixer - PowerShell typo auto-corrector
 
 Commands:
-  correct <cmd>        Check and print the corrected form of <cmd>
+  suggest <cmd>        Fuzzy-match <cmd> and print the corrected form (used by hook)
+  correct <cmd>        Like suggest but also logs the correction
+  log <orig> <fixed>   Record a confirmed correction to the log file
   install [profile]    Add the PSReadLine hook to your PowerShell profile
   uninstall [profile]  Remove the hook from your PowerShell profile
   stats                Show correction statistics from the log
@@ -163,5 +211,8 @@ Commands:
 
 Config file:  %USERPROFILE%\.typo-fixer\config.json
 Log file:     %USERPROFILE%\.typo-fixer\corrections.log
-`)
+`
+
+func printUsage() {
+	os.Stdout.WriteString(usageText)
 }

@@ -20,8 +20,9 @@ var ErrAlreadyInstalled = errors.New("CommandFixer already installed in PowerShe
 // ErrNotInstalled is returned by Uninstall when the hook is not present.
 var ErrNotInstalled = errors.New("CommandFixer not found in PowerShell profile")
 
-// ProfileSnippet returns the PowerShell block that intercepts the Enter key
-// and runs commandfixer against the current buffer before execution.
+// ProfileSnippet returns the PowerShell block that intercepts the Enter key,
+// checks the typed command against the fuzzy-matching engine, and prompts the
+// user to confirm before applying any correction.
 // binaryPath must be the full path to the commandfixer executable.
 func ProfileSnippet(binaryPath string) string {
 	return fmt.Sprintf(`%s
@@ -29,17 +30,23 @@ Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
     $line = $null; $cursor = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
     if ($line.Trim() -ne '') {
-        $corrected = & '%s' correct $line 2>$null
-        if ($LASTEXITCODE -eq 0 -and $corrected -and $corrected -ne $line) {
-            Write-Host "CommandFixer: '$line' -> '$corrected'" -ForegroundColor Yellow
-            [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($corrected)
+        $suggestion = & '%s' suggest "$line" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $suggestion) {
+            Write-Host ""
+            Write-Host "CommandFixer: did you mean: $suggestion [Y/n] " -NoNewline -ForegroundColor Yellow
+            $key = [Console]::ReadKey($true)
+            Write-Host ""
+            if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y' -or $key.Key -eq 'Enter') {
+                [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($suggestion)
+                & '%s' log "$line" "$suggestion" 2>$null
+            }
         }
     }
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
 }
 %s
-`, snippetStart, binaryPath, snippetEnd)
+`, snippetStart, binaryPath, binaryPath, snippetEnd)
 }
 
 // DefaultProfilePath returns the CurrentUserAllHosts PowerShell 7 profile path.

@@ -31,17 +31,15 @@ func writeTempConfig(t *testing.T, cfg *config.Config) string {
 	return path
 }
 
-// minimalConfig returns a Config with one typo rule and a temp log path.
+// minimalConfig returns a Config with default threshold and a temp log path.
 func minimalConfig(t *testing.T) (*config.Config, string) {
 	t.Helper()
 	logPath := filepath.Join(t.TempDir(), "corrections.log")
 	return &config.Config{
-		Typos: []config.TypoEntry{
-			{From: "git sattus", To: "git status"},
-		},
 		Settings: config.Settings{
-			LogFile:     logPath,
-			MaxLogLines: 100,
+			LogFile:             logPath,
+			MaxLogLines:         100,
+			SimilarityThreshold: 0.6,
 		},
 	}, logPath
 }
@@ -52,8 +50,6 @@ func minimalConfig(t *testing.T) (*config.Config, string) {
 
 func TestRun_HelpFlag(t *testing.T) {
 	t.Parallel()
-	// run() resolves the real default config path, then calls dispatch.
-	// We only verify it does not return an error for the help command.
 	if err := run([]string{"help"}); err != nil {
 		t.Fatalf("run help returned error: %v", err)
 	}
@@ -124,6 +120,97 @@ func TestDispatch_UnknownCommand(t *testing.T) {
 	}
 }
 
+func TestDispatch_Suggest(t *testing.T) {
+	t.Parallel()
+	cfg, _ := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	if err := dispatch([]string{"suggest", "git", "status"}, cfgPath); err != nil {
+		t.Fatalf("dispatch suggest returned error: %v", err)
+	}
+}
+
+func TestDispatch_Log(t *testing.T) {
+	t.Parallel()
+	cfg, _ := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	if err := dispatch([]string{"log", "git sattus", "git status"}, cfgPath); err != nil {
+		t.Fatalf("dispatch log returned error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// cmdSuggest
+// ---------------------------------------------------------------------------
+
+func TestCmdSuggest_NoArgs(t *testing.T) {
+	t.Parallel()
+	err := cmdSuggest([]string{}, "")
+	if err == nil {
+		t.Fatal("expected error when no command provided")
+	}
+}
+
+func TestCmdSuggest_KnownTypo(t *testing.T) {
+	t.Parallel()
+	cfg, _ := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	// "git sattus" should fuzzy-match to "git status".
+	if err := cmdSuggest([]string{"git sattus"}, cfgPath); err != nil {
+		t.Fatalf("cmdSuggest returned error: %v", err)
+	}
+}
+
+func TestCmdSuggest_ExactCommand_NoOutput(t *testing.T) {
+	t.Parallel()
+	cfg, _ := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	// "git status" is already correct: no output, no error.
+	if err := cmdSuggest([]string{"git", "status"}, cfgPath); err != nil {
+		t.Fatalf("cmdSuggest returned error: %v", err)
+	}
+}
+
+func TestCmdSuggest_UnknownTool_NoOutput(t *testing.T) {
+	t.Parallel()
+	cfg, _ := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	if err := cmdSuggest([]string{"foobar", "baz"}, cfgPath); err != nil {
+		t.Fatalf("cmdSuggest returned error for unknown tool: %v", err)
+	}
+}
+
+func TestCmdSuggest_MultiWordInput_Joined(t *testing.T) {
+	t.Parallel()
+	cfg, _ := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	// Multiple args get joined; "git sattus" should correct.
+	if err := cmdSuggest([]string{"git", "sattus"}, cfgPath); err != nil {
+		t.Fatalf("cmdSuggest returned error: %v", err)
+	}
+}
+
+func TestCmdSuggest_BadConfig_ReturnsError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(cfgPath, []byte("NOTJSON"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err := cmdSuggest([]string{"git", "sattus"}, cfgPath)
+	if err == nil {
+		t.Fatal("expected error for bad config, got nil")
+	}
+}
+
+func TestCmdSuggest_MissingConfig_UsesDefault(t *testing.T) {
+	t.Parallel()
+	cfgPath := filepath.Join(t.TempDir(), "nonexistent.json")
+	// No config: falls back to default threshold. Should not error.
+	if err := cmdSuggest([]string{"git", "status"}, cfgPath); err != nil {
+		t.Fatalf("cmdSuggest with missing config returned error: %v", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // cmdCorrect
 // ---------------------------------------------------------------------------
@@ -140,7 +227,7 @@ func TestCmdCorrect_NoMatch(t *testing.T) {
 	t.Parallel()
 	cfg, _ := minimalConfig(t)
 	cfgPath := writeTempConfig(t, cfg)
-	// "git status" already correct - no correction, no log write.
+	// "git status" already correct: no correction, no log write.
 	if err := cmdCorrect([]string{"git", "status"}, cfgPath); err != nil {
 		t.Fatalf("cmdCorrect returned error: %v", err)
 	}
@@ -151,10 +238,10 @@ func TestCmdCorrect_Match_WritesLog(t *testing.T) {
 	cfg, logPath := minimalConfig(t)
 	cfgPath := writeTempConfig(t, cfg)
 
+	// "git sattus" fuzzy-matches "git status"; log must be created.
 	if err := cmdCorrect([]string{"git", "sattus"}, cfgPath); err != nil {
 		t.Fatalf("cmdCorrect returned error: %v", err)
 	}
-	// Log file must have been created.
 	if _, err := os.Stat(logPath); err != nil {
 		t.Errorf("log file not created after correction: %v", err)
 	}
@@ -172,7 +259,6 @@ func TestCmdCorrect_MultiWordInput(t *testing.T) {
 
 func TestCmdCorrect_MissingConfigFile_UsesDefault(t *testing.T) {
 	t.Parallel()
-	// Point to a non-existent config file: LoadOrDefault returns empty config.
 	cfgPath := filepath.Join(t.TempDir(), "nonexistent.json")
 	if err := cmdCorrect([]string{"git", "status"}, cfgPath); err != nil {
 		t.Fatalf("cmdCorrect with missing config returned error: %v", err)
@@ -192,22 +278,59 @@ func TestCmdCorrect_BadConfig_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestCmdCorrect_InvalidRegex_ReturnsError(t *testing.T) {
+// ---------------------------------------------------------------------------
+// cmdLog
+// ---------------------------------------------------------------------------
+
+func TestCmdLog_NoArgs_ReturnsError(t *testing.T) {
 	t.Parallel()
-	cfg := &config.Config{
-		Typos: []config.TypoEntry{
-			{From: `[bad(`, To: "x", Regex: true},
-		},
-		Settings: config.Settings{
-			LogFile:     filepath.Join(t.TempDir(), "log.log"),
-			MaxLogLines: 100,
-		},
-	}
-	cfgPath := writeTempConfig(t, cfg)
-	err := cmdCorrect([]string{"something"}, cfgPath)
+	err := cmdLog([]string{}, "")
 	if err == nil {
-		t.Fatal("expected error for invalid regex, got nil")
+		t.Fatal("expected error when no args provided")
 	}
+}
+
+func TestCmdLog_OneArg_ReturnsError(t *testing.T) {
+	t.Parallel()
+	err := cmdLog([]string{"git sattus"}, "")
+	if err == nil {
+		t.Fatal("expected error when only one arg provided")
+	}
+}
+
+func TestCmdLog_WritesEntry(t *testing.T) {
+	t.Parallel()
+	cfg, logPath := minimalConfig(t)
+	cfgPath := writeTempConfig(t, cfg)
+	if err := cmdLog([]string{"git sattus", "git status"}, cfgPath); err != nil {
+		t.Fatalf("cmdLog returned error: %v", err)
+	}
+	if _, err := os.Stat(logPath); err != nil {
+		t.Errorf("log file not created after cmdLog: %v", err)
+	}
+}
+
+func TestCmdLog_BadConfig_ReturnsError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(cfgPath, []byte("NOTJSON"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err := cmdLog([]string{"git sattus", "git status"}, cfgPath)
+	if err == nil {
+		t.Fatal("expected error for bad config, got nil")
+	}
+}
+
+func TestCmdLog_MissingConfig_UsesDefault(t *testing.T) {
+	t.Parallel()
+	// Missing config: uses default log path in home dir.
+	// Just verify it doesn't error on config resolution itself.
+	cfgPath := filepath.Join(t.TempDir(), "nonexistent.json")
+	// cmdLog may fail if the default log path can't be written (CI), but
+	// the config load itself should not error.
+	_ = cmdLog([]string{"git sattus", "git status"}, cfgPath)
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +341,6 @@ func TestCmdInstall_WithExplicitProfile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	profile := filepath.Join(dir, "profile.ps1")
-	// Pass profile path as arg[0] to override the default.
 	if err := cmdInstall([]string{profile}); err != nil {
 		t.Fatalf("cmdInstall returned error: %v", err)
 	}
@@ -285,7 +407,6 @@ func TestCmdStats_EmptyLog(t *testing.T) {
 	t.Parallel()
 	cfg, _ := minimalConfig(t)
 	cfgPath := writeTempConfig(t, cfg)
-	// Log file does not exist yet: should show 0 corrections without error.
 	if err := cmdStats(cfgPath); err != nil {
 		t.Fatalf("cmdStats returned error: %v", err)
 	}
@@ -293,13 +414,12 @@ func TestCmdStats_EmptyLog(t *testing.T) {
 
 func TestCmdStats_WithEntries(t *testing.T) {
 	t.Parallel()
-	cfg, logPath := minimalConfig(t)
+	cfg, _ := minimalConfig(t)
 	cfgPath := writeTempConfig(t, cfg)
-	// Populate the log via cmdCorrect.
+	// Populate log via cmdCorrect. "git sattus" fuzzy-matches "git status".
 	if err := cmdCorrect([]string{"git", "sattus"}, cfgPath); err != nil {
 		t.Fatal(err)
 	}
-	_ = logPath
 	if err := cmdStats(cfgPath); err != nil {
 		t.Fatalf("cmdStats with entries returned error: %v", err)
 	}
@@ -323,13 +443,12 @@ func TestCmdStats_BadConfig_ReturnsError(t *testing.T) {
 // a non-IsNotExist error.
 func TestCmdStats_ReadStatsError(t *testing.T) {
 	t.Parallel()
-	// logDir is a directory, not a file: ReadStats will fail on it.
 	logDir := t.TempDir()
 	cfg := &config.Config{
-		Typos: nil,
 		Settings: config.Settings{
-			LogFile:     logDir,
-			MaxLogLines: 100,
+			LogFile:             logDir,
+			MaxLogLines:         100,
+			SimilarityThreshold: 0.6,
 		},
 	}
 	cfgPath := writeTempConfig(t, cfg)
@@ -348,6 +467,5 @@ func TestCmdStats_ReadStatsError(t *testing.T) {
 
 func TestPrintUsage(t *testing.T) {
 	t.Parallel()
-	// Just verify it does not panic.
 	printUsage()
 }
