@@ -59,6 +59,31 @@ func DefaultProfilePath() (string, error) {
 	return filepath.Join(home, "Documents", "PowerShell", "profile.ps1"), nil
 }
 
+// PS5ProfilePath returns the CurrentUserAllHosts Windows PowerShell 5 profile path.
+// Typically: $HOME\Documents\WindowsPowerShell\profile.ps1
+func PS5ProfilePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home directory: %w", err)
+	}
+	return filepath.Join(home, "Documents", "WindowsPowerShell", "profile.ps1"), nil
+}
+
+// AllProfilePaths returns profile paths for all supported PowerShell versions:
+// PowerShell 7 (pwsh) and Windows PowerShell 5 (powershell.exe).
+// Install/uninstall into all returned paths to cover both shells.
+func AllProfilePaths() ([]string, error) {
+	ps7, err := DefaultProfilePath()
+	if err != nil {
+		return nil, err
+	}
+	ps5, err := PS5ProfilePath()
+	if err != nil {
+		return nil, err
+	}
+	return []string{ps7, ps5}, nil
+}
+
 // Install appends the CommandFixer hook snippet to the profile at profilePath.
 // Creates parent directories if they do not exist.
 // Returns ErrAlreadyInstalled if the snippet is already present.

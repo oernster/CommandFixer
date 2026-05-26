@@ -58,6 +58,39 @@ func TestDefaultProfilePath(t *testing.T) {
 	}
 }
 
+func TestPS5ProfilePath(t *testing.T) {
+	t.Parallel()
+	path, err := PS5ProfilePath()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasSuffix(path, "profile.ps1") {
+		t.Errorf("expected suffix profile.ps1, got %q", path)
+	}
+	if !strings.Contains(path, "WindowsPowerShell") {
+		t.Errorf("expected WindowsPowerShell in path, got %q", path)
+	}
+}
+
+func TestAllProfilePaths_ReturnsBoth(t *testing.T) {
+	t.Parallel()
+	paths, err := AllProfilePaths()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(paths) != 2 {
+		t.Fatalf("expected 2 profile paths, got %d", len(paths))
+	}
+	// First path: PS7 (Documents\PowerShell\profile.ps1)
+	if !strings.Contains(paths[0], "PowerShell") || strings.Contains(paths[0], "Windows") {
+		t.Errorf("expected PS7 path first (no 'Windows' prefix), got %q", paths[0])
+	}
+	// Second path: PS5 (Documents\WindowsPowerShell\profile.ps1)
+	if !strings.Contains(paths[1], "WindowsPowerShell") {
+		t.Errorf("expected PS5 path second (WindowsPowerShell), got %q", paths[1])
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Install
 // ---------------------------------------------------------------------------
