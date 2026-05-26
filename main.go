@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -136,42 +137,83 @@ func cmdLog(args []string, cfgPath string) error {
 	return nil
 }
 
-// cmdInstall adds the CommandFixer hook to the PowerShell profile.
-// An optional first argument overrides the profile path (used in tests).
+// cmdInstall adds the CommandFixer hook to PowerShell profiles.
+// With an explicit first argument: install into that single profile path (used in tests).
+// With no arguments: install into all known profiles (PS7 + PS5) simultaneously.
 func cmdInstall(args []string) error {
-	profilePath, err := shell.DefaultProfilePath()
-	if err != nil {
-		return err
-	}
-	if len(args) > 0 {
-		profilePath = args[0]
-	}
 	binaryPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("locate executable: %w", err)
 	}
-	if err := shell.Install(profilePath, binaryPath); err != nil {
-		return err
-	}
-	fmt.Printf("Installed CommandFixer into: %s\n", profilePath)
-	fmt.Println("Restart PowerShell to activate.")
-	return nil
-}
 
-// cmdUninstall removes the CommandFixer hook from the PowerShell profile.
-// An optional first argument overrides the profile path (used in tests).
-func cmdUninstall(args []string) error {
-	profilePath, err := shell.DefaultProfilePath()
+	if len(args) > 0 {
+		// Single profile override used in tests and direct invocations.
+		profilePath := args[0]
+		if err := shell.Install(profilePath, binaryPath); err != nil {
+			return err
+		}
+		fmt.Printf("Installed CommandFixer into: %s\n", profilePath)
+		fmt.Println("Restart PowerShell to activate.")
+		return nil
+	}
+
+	// No override: install into all known profiles (PS7 pwsh + PS5 powershell.exe).
+	profiles, err := shell.AllProfilePaths()
 	if err != nil {
 		return err
 	}
-	if len(args) > 0 {
-		profilePath = args[0]
+	anyInstalled := false
+	for _, profilePath := range profiles {
+		if err := shell.Install(profilePath, binaryPath); err != nil {
+			if errors.Is(err, shell.ErrAlreadyInstalled) {
+				fmt.Printf("Already installed in:         %s\n", profilePath)
+				continue
+			}
+			return err
+		}
+		fmt.Printf("Installed CommandFixer into:  %s\n", profilePath)
+		anyInstalled = true
 	}
-	if err := shell.Uninstall(profilePath); err != nil {
+	if anyInstalled {
+		fmt.Println("Restart PowerShell to activate.")
+	}
+	return nil
+}
+
+// cmdUninstall removes the CommandFixer hook from PowerShell profiles.
+// With an explicit first argument: uninstall from that single profile path (used in tests).
+// With no arguments: uninstall from all known profiles (PS7 + PS5) simultaneously.
+func cmdUninstall(args []string) error {
+	if len(args) > 0 {
+		// Single profile override used in tests and direct invocations.
+		profilePath := args[0]
+		if err := shell.Uninstall(profilePath); err != nil {
+			return err
+		}
+		fmt.Printf("Removed CommandFixer from: %s\n", profilePath)
+		return nil
+	}
+
+	// No override: uninstall from all known profiles (PS7 pwsh + PS5 powershell.exe).
+	profiles, err := shell.AllProfilePaths()
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Removed CommandFixer from: %s\n", profilePath)
+	anyRemoved := false
+	for _, profilePath := range profiles {
+		if err := shell.Uninstall(profilePath); err != nil {
+			if errors.Is(err, shell.ErrNotInstalled) {
+				fmt.Printf("Not installed in:             %s (skipping)\n", profilePath)
+				continue
+			}
+			return err
+		}
+		fmt.Printf("Removed CommandFixer from:    %s\n", profilePath)
+		anyRemoved = true
+	}
+	if !anyRemoved {
+		fmt.Println("CommandFixer was not installed in any profile.")
+	}
 	return nil
 }
 

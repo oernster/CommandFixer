@@ -1,4 +1,4 @@
-# CommandFixer installer for Windows PowerShell 7
+# CommandFixer installer for Windows PowerShell 5 (powershell.exe) and PowerShell 7 (pwsh)
 # Run with: .\install.ps1
 # Or from any dir: powershell -ExecutionPolicy Bypass -File .\install.ps1
 
@@ -63,7 +63,7 @@ if (-not (Test-Path $ConfigDest)) {
 # ---- 5. Install PowerShell profile hook ---------------------------------
 
 Write-Host ""
-Write-Host "Installing PowerShell profile hook..." -ForegroundColor Cyan
+Write-Host "Installing PowerShell profile hook (PS5 + PS7)..." -ForegroundColor Cyan
 & $BinaryDest install
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Profile hook installation failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
@@ -73,14 +73,14 @@ if ($LASTEXITCODE -ne 0) {
 # ---- 6. Done ------------------------------------------------------------
 
 Write-Host ""
-Write-Host "CommandFixer installed successfully." -ForegroundColor Green
+Write-Host "CommandFixer installed successfully (PowerShell 5 + 7)." -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Edit config: $ConfigDest"
-Write-Host "  2. Restart PowerShell"
+Write-Host "  2. Restart PowerShell (both powershell.exe and pwsh will work)"
 Write-Host "  3. Type a typo and press Enter - it gets corrected automatically"
 Write-Host ""
 Write-Host "Other commands:"
 Write-Host "  commandfixer stats      - show correction history"
-Write-Host "  commandfixer uninstall  - remove the profile hook"
+Write-Host "  commandfixer uninstall  - remove the profile hook from all shells"
 Write-Host "  commandfixer help       - show all commands"
