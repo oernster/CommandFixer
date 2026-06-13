@@ -110,11 +110,12 @@ func TestSuggest_TooFarOff_NoCorrection(t *testing.T) {
 
 func TestSuggest_BelowCustomThreshold(t *testing.T) {
 	t.Parallel()
-	// "sattus" vs "status": similarity ~0.667, below 0.8 threshold.
-	e := New(0.8)
+	// "sattus" vs "status": a single adjacent transposition, similarity ~0.833,
+	// which is below a strict 0.9 threshold.
+	e := New(0.9)
 	_, found := e.Suggest("git sattus")
 	if found {
-		t.Errorf("expected no suggestion when similarity is below custom threshold 0.8")
+		t.Errorf("expected no suggestion when similarity is below custom threshold 0.9")
 	}
 }
 
@@ -208,50 +209,66 @@ func TestSuggest_OriginalUnchangedOnNoMatch(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// levenshtein
+// damerauLevenshtein
 // ---------------------------------------------------------------------------
 
-func TestLevenshtein_EmptyStrings(t *testing.T) {
+func TestDamerauLevenshtein_EmptyStrings(t *testing.T) {
 	t.Parallel()
-	if got := levenshtein("", ""); got != 0 {
+	if got := damerauLevenshtein("", ""); got != 0 {
 		t.Errorf("expected 0, got %d", got)
 	}
 }
 
-func TestLevenshtein_EmptyA(t *testing.T) {
+func TestDamerauLevenshtein_EmptyA(t *testing.T) {
 	t.Parallel()
-	if got := levenshtein("", "abc"); got != 3 {
+	if got := damerauLevenshtein("", "abc"); got != 3 {
 		t.Errorf("expected 3, got %d", got)
 	}
 }
 
-func TestLevenshtein_EmptyB(t *testing.T) {
+func TestDamerauLevenshtein_EmptyB(t *testing.T) {
 	t.Parallel()
-	if got := levenshtein("abc", ""); got != 3 {
+	if got := damerauLevenshtein("abc", ""); got != 3 {
 		t.Errorf("expected 3, got %d", got)
 	}
 }
 
-func TestLevenshtein_EqualStrings(t *testing.T) {
+func TestDamerauLevenshtein_EqualStrings(t *testing.T) {
 	t.Parallel()
-	if got := levenshtein("status", "status"); got != 0 {
+	if got := damerauLevenshtein("status", "status"); got != 0 {
 		t.Errorf("expected 0, got %d", got)
 	}
 }
 
-func TestLevenshtein_SingleSubstitution(t *testing.T) {
+func TestDamerauLevenshtein_SingleDeletion(t *testing.T) {
 	t.Parallel()
-	// "ps" -> "pss": insert one char.
-	if got := levenshtein("pss", "ps"); got != 1 {
+	// "pss" -> "ps": delete one char.
+	if got := damerauLevenshtein("pss", "ps"); got != 1 {
 		t.Errorf("expected 1, got %d", got)
 	}
 }
 
-func TestLevenshtein_KnownDistance(t *testing.T) {
+func TestDamerauLevenshtein_KnownDistance(t *testing.T) {
 	t.Parallel()
 	// "comit" -> "commit": insert one 'm'.
-	if got := levenshtein("comit", "commit"); got != 1 {
+	if got := damerauLevenshtein("comit", "commit"); got != 1 {
 		t.Errorf("expected distance 1 for comit/commit, got %d", got)
+	}
+}
+
+func TestDamerauLevenshtein_AdjacentTransposition(t *testing.T) {
+	t.Parallel()
+	// A single adjacent swap counts as one edit, not two.
+	for _, tc := range []struct {
+		a, b string
+	}{
+		{"ba", "ab"},
+		{"gti", "git"},
+		{"psuh", "push"},
+	} {
+		if got := damerauLevenshtein(tc.a, tc.b); got != 1 {
+			t.Errorf("expected distance 1 for %q/%q transposition, got %d", tc.a, tc.b, got)
+		}
 	}
 }
 
@@ -295,7 +312,8 @@ func TestSimilarity_AboveDefaultThreshold(t *testing.T) {
 
 func TestSimilarity_AboveDefaultThresholdForStatusTypo(t *testing.T) {
 	t.Parallel()
-	// "sattus" vs "status": distance=2, max=6, sim~0.667.
+	// "sattus" vs "status": a single adjacent transposition, distance=1,
+	// max=6, sim~0.833.
 	s := similarity("sattus", "status")
 	if s <= defaultThreshold {
 		t.Errorf("expected similarity > %v for sattus/status, got %v", defaultThreshold, s)
@@ -515,5 +533,107 @@ func TestSuggest_Standalone_Tasklist_Typo(t *testing.T) {
 	}
 	if result != "tasklist /v" {
 		t.Errorf("expected %q, got %q", "tasklist /v", result)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Suggest - command-name alias (gti -> git) and tool-name correction
+// ---------------------------------------------------------------------------
+
+func TestSuggest_GitAlias_Push(t *testing.T) {
+	t.Parallel()
+	e := New(0)
+	result, found := e.Suggest("gti push")
+	if !found {
+		t.Fatal("expected found=true for 'gti push'")
+	}
+	if result != "git push" {
+		t.Errorf("expected %q, got %q", "git push", result)
+	}
+}
+
+func TestSuggest_GitAlias_Status(t *testing.T) {
+	t.Parallel()
+	e := New(0)
+	result, found := e.Suggest("gti status")
+	if !found {
+		t.Fatal("expected found=true for 'gti status'")
+	}
+	if result != "git status" {
+		t.Errorf("expected %q, got %q", "git status", result)
+	}
+}
+
+func TestSuggest_GitAlias_WithSubcommandTypo(t *testing.T) {
+	t.Parallel()
+	// Both the command name (gti) and the subcommand (psuh) are wrong.
+	e := New(0)
+	result, found := e.Suggest("gti psuh")
+	if !found {
+		t.Fatal("expected found=true for 'gti psuh'")
+	}
+	if result != "git push" {
+		t.Errorf("expected %q, got %q", "git push", result)
+	}
+}
+
+func TestSuggest_GitAlias_PreservesTrailingArgs(t *testing.T) {
+	t.Parallel()
+	e := New(0)
+	result, found := e.Suggest("gti push origin main")
+	if !found {
+		t.Fatal("expected found=true for 'gti push origin main'")
+	}
+	if result != "git push origin main" {
+		t.Errorf("expected %q, got %q", "git push origin main", result)
+	}
+}
+
+func TestSuggest_GitPush_Variants(t *testing.T) {
+	t.Parallel()
+	e := New(0)
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"git puh", "git push"},  // single deletion
+		{"git pus", "git push"},  // single deletion
+		{"git psuh", "git push"}, // adjacent transposition
+		{"git puhs", "git push"}, // adjacent transposition
+	}
+	for _, tc := range cases {
+		result, found := e.Suggest(tc.in)
+		if !found {
+			t.Fatalf("expected found=true for %q", tc.in)
+		}
+		if result != tc.want {
+			t.Errorf("for %q: expected %q, got %q", tc.in, tc.want, result)
+		}
+	}
+}
+
+func TestSuggest_ToolNameTypo_Docker(t *testing.T) {
+	t.Parallel()
+	// "dokcer" is a transposition of "docker"; the tool name itself is fixed.
+	e := New(0)
+	result, found := e.Suggest("dokcer ps")
+	if !found {
+		t.Fatal("expected found=true for 'dokcer ps'")
+	}
+	if result != "docker ps" {
+		t.Errorf("expected %q, got %q", "docker ps", result)
+	}
+}
+
+func TestSuggest_ToolNameAndSubcommandTypo_Docker(t *testing.T) {
+	t.Parallel()
+	// Both the tool (dokcer) and the subcommand (pss) are wrong.
+	e := New(0)
+	result, found := e.Suggest("dokcer pss")
+	if !found {
+		t.Fatal("expected found=true for 'dokcer pss'")
+	}
+	if result != "docker ps" {
+		t.Errorf("expected %q, got %q", "docker ps", result)
 	}
 }

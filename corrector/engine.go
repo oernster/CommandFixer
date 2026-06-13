@@ -10,7 +10,10 @@
 // and corrects the command name itself when a close-enough match is found.
 package corrector
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // commandDB maps known CLI tool names to their valid subcommands.
 // Tool names must match exactly; subcommands are matched by similarity.
@@ -204,6 +207,29 @@ var windowsCommands = []string{
 	"assoc", "date", "msg", "pause", "print", "schtasks", "time",
 }
 
+// commandAliases maps habitual command-name typos to their intended command.
+// These are corrected unconditionally (independent of the similarity threshold)
+// because they are transpositions a user makes every time, for example "gti"
+// for "git". Add further always-wrong spellings here.
+var commandAliases = map[string]string{
+	"gti": "git",
+}
+
+// commandDBTools is the sorted list of known CLI tool names (the keys of
+// commandDB), used to fuzzy-correct a mistyped tool name such as "dokcer" for
+// "docker". It is sorted so that correction is deterministic.
+var commandDBTools = sortedToolNames()
+
+// sortedToolNames returns the commandDB keys in sorted order.
+func sortedToolNames() []string {
+	names := make([]string, 0, len(commandDB))
+	for name := range commandDB {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // defaultThreshold is used when New receives a zero or out-of-range threshold.
 const defaultThreshold = 0.6
 
@@ -230,64 +256,71 @@ func (e *Engine) Threshold() float64 {
 // corrected form and true when a similar-enough match is found. It returns
 // cmd unchanged and false when no correction can be made.
 //
-// Two correction modes are applied in order:
+// Correction is applied in this order:
 //
-//  1. Subcommand correction: when the first token (tool name) is an exact key
-//     in commandDB, the second token (subcommand) is fuzzy-matched against
-//     the tool's known subcommands. All tokens beyond the second are preserved.
+//  1. Command-name alias: when the first token is a known habitual typo
+//     (commandAliases, for example "gti"), it is replaced unconditionally and
+//     the subcommand is then corrected against the intended tool.
 //
-//  2. Standalone command correction: when the first token is not in commandDB,
-//     it is fuzzy-matched against the windowsCommands list. When a close-enough
-//     match is found the command name is corrected and all remaining tokens are
-//     preserved verbatim.
+//  2. Subcommand correction: when the first token is an exact commandDB key,
+//     the second token is fuzzy-matched against the tool's known subcommands.
 //
-// In both modes at least two tokens must be present and the similarity must
-// meet or exceed the configured threshold.
+//  3. Tool-name correction: when the first token matches neither of the above,
+//     it is fuzzy-matched against the known CLI tools and the Windows standalone
+//     commands; the closer of the two wins. A corrected CLI tool also has its
+//     subcommand corrected.
+//
+// In every mode at least two tokens must be present, and a fuzzy match must
+// meet or exceed the configured threshold. Tokens beyond the corrected ones are
+// preserved verbatim.
 func (e *Engine) Suggest(cmd string) (string, bool) {
 	tokens := strings.Fields(cmd)
 	if len(tokens) < 2 {
 		return cmd, false
 	}
 
-	tool := tokens[0]
-	subcommand := tokens[1]
-
-	subcommands, known := commandDB[tool]
-	if !known {
-		return e.suggestStandalone(cmd, tokens)
+	if canonical, aliased := commandAliases[tokens[0]]; aliased {
+		tokens[0] = canonical
+		corrected, _ := e.correctSubcommand(tokens)
+		return corrected, true
 	}
+
+	if _, known := commandDB[tokens[0]]; known {
+		return e.correctSubcommand(tokens)
+	}
+
+	return e.suggestToolName(cmd, tokens)
+}
+
+// correctSubcommand fuzzy-corrects tokens[1] against the known subcommands of
+// the tool named in tokens[0], which must be a commandDB key. It returns the
+// joined command and whether the subcommand was changed. An already-valid or
+// too-dissimilar subcommand is left untouched.
+func (e *Engine) correctSubcommand(tokens []string) (string, bool) {
+	subcommands := commandDB[tokens[0]]
+	subcommand := tokens[1]
 
 	// Already a valid subcommand: nothing to correct.
 	for _, sc := range subcommands {
 		if sc == subcommand {
-			return cmd, false
+			return strings.Join(tokens, " "), false
 		}
 	}
 
-	// Find the closest subcommand by normalised Levenshtein similarity.
-	bestMatch := ""
-	bestSim := 0.0
-	for _, sc := range subcommands {
-		sim := similarity(subcommand, sc)
-		if sim > bestSim {
-			bestSim = sim
-			bestMatch = sc
-		}
+	match, sim := bestMatch(subcommand, subcommands)
+	if sim < e.threshold || match == "" {
+		return strings.Join(tokens, " "), false
 	}
-
-	if bestSim < e.threshold || bestMatch == "" {
-		return cmd, false
-	}
-
-	tokens[1] = bestMatch
+	tokens[1] = match
 	return strings.Join(tokens, " "), true
 }
 
-// suggestStandalone attempts to correct the first token of tokens by
-// fuzzy-matching it against the windowsCommands list. It returns the corrected
-// command and true when a match at or above the threshold is found, or the
-// original cmd and false otherwise.
-func (e *Engine) suggestStandalone(cmd string, tokens []string) (string, bool) {
+// suggestToolName attempts to correct a mistyped first token. It fuzzy-matches
+// the token against both the known CLI tools (commandDB keys) and the Windows
+// standalone commands, and applies the closer match. A corrected CLI tool also
+// has its subcommand corrected; a corrected standalone command keeps all of its
+// remaining arguments verbatim.
+func (e *Engine) suggestToolName(cmd string, tokens []string) (string, bool) {
 	tool := tokens[0]
 
 	// Already an exact known standalone command: no correction needed.
@@ -297,38 +330,58 @@ func (e *Engine) suggestStandalone(cmd string, tokens []string) (string, bool) {
 		}
 	}
 
-	bestMatch := ""
-	bestSim := 0.0
-	for _, sc := range windowsCommands {
-		sim := similarity(tool, sc)
-		if sim > bestSim {
-			bestSim = sim
-			bestMatch = sc
+	toolMatch, toolSim := bestMatch(tool, commandDBTools)
+	winMatch, winSim := bestMatch(tool, windowsCommands)
+
+	// Prefer a CLI-tool correction on a tie, then also fix its subcommand.
+	if toolSim >= winSim {
+		if toolSim < e.threshold || toolMatch == "" {
+			return cmd, false
 		}
+		tokens[0] = toolMatch
+		corrected, _ := e.correctSubcommand(tokens)
+		return corrected, true
 	}
 
-	if bestSim < e.threshold || bestMatch == "" {
+	if winSim < e.threshold || winMatch == "" {
 		return cmd, false
 	}
-
-	tokens[0] = bestMatch
+	tokens[0] = winMatch
 	return strings.Join(tokens, " "), true
 }
 
+// bestMatch returns the candidate most similar to token together with its
+// similarity score in [0, 1]. It returns an empty string and 0 when no
+// candidate has any similarity (or candidates is empty).
+func bestMatch(token string, candidates []string) (string, float64) {
+	best := ""
+	bestSim := 0.0
+	for _, candidate := range candidates {
+		sim := similarity(token, candidate)
+		if sim > bestSim {
+			bestSim = sim
+			best = candidate
+		}
+	}
+	return best, bestSim
+}
+
 // similarity returns a value in [0, 1] representing how alike a and b are,
-// based on normalised Levenshtein distance over byte length.
+// based on normalised Damerau-Levenshtein distance over byte length.
 func similarity(a, b string) float64 {
 	maxLen := max(len(a), len(b))
 	if maxLen == 0 {
 		return 1.0
 	}
-	dist := levenshtein(a, b)
+	dist := damerauLevenshtein(a, b)
 	return 1.0 - float64(dist)/float64(maxLen)
 }
 
-// levenshtein computes the edit distance between two ASCII strings
-// using a two-row dynamic programming approach.
-func levenshtein(a, b string) int {
+// damerauLevenshtein computes the optimal string alignment distance between two
+// ASCII strings. It is the Levenshtein distance extended so that a transposition
+// of two adjacent characters counts as a single edit, which matches common
+// typing mistakes such as "psuh" for "push" or "gti" for "git".
+func damerauLevenshtein(a, b string) int {
 	la, lb := len(a), len(b)
 	if la == 0 {
 		return lb
@@ -337,22 +390,26 @@ func levenshtein(a, b string) int {
 		return la
 	}
 
-	prev := make([]int, lb+1)
-	curr := make([]int, lb+1)
-	for j := range prev {
-		prev[j] = j
+	d := make([][]int, la+1)
+	for i := 0; i <= la; i++ {
+		d[i] = make([]int, lb+1)
+		d[i][0] = i
+	}
+	for j := 0; j <= lb; j++ {
+		d[0][j] = j
 	}
 
 	for i := 1; i <= la; i++ {
-		curr[0] = i
 		for j := 1; j <= lb; j++ {
 			cost := 1
 			if a[i-1] == b[j-1] {
 				cost = 0
 			}
-			curr[j] = min(curr[j-1]+1, min(prev[j]+1, prev[j-1]+cost))
+			d[i][j] = min(d[i-1][j]+1, min(d[i][j-1]+1, d[i-1][j-1]+cost))
+			if i > 1 && j > 1 && a[i-1] == b[j-2] && a[i-2] == b[j-1] {
+				d[i][j] = min(d[i][j], d[i-2][j-2]+1)
+			}
 		}
-		prev, curr = curr, prev
 	}
-	return prev[lb]
+	return d[la][lb]
 }
