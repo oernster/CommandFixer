@@ -40,6 +40,16 @@ func TestProfileSnippet_ContainsPSReadLineCall(t *testing.T) {
 	}
 }
 
+func TestProfileSnippet_GuardsMissingBinary(t *testing.T) {
+	t.Parallel()
+	// The hook must verify the binary exists before invoking it, so an
+	// uninstalled or moved executable cannot error on every keystroke.
+	snip := ProfileSnippet(`C:\tools\commandfixer.exe`)
+	if !strings.Contains(snip, "Test-Path") {
+		t.Error("snippet missing Test-Path guard for the binary path")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // DefaultProfilePath
 // ---------------------------------------------------------------------------
