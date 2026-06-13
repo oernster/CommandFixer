@@ -22,15 +22,18 @@ var ErrNotInstalled = errors.New("CommandFixer not found in PowerShell profile")
 
 // ProfileSnippet returns the PowerShell block that intercepts the Enter key,
 // checks the typed command against the fuzzy-matching engine, and prompts the
-// user to confirm before applying any correction.
+// user to confirm before applying any correction. The handler first verifies
+// the binary still exists (Test-Path), so an uninstalled or moved executable
+// fails silently instead of raising an error on every keystroke.
 // binaryPath must be the full path to the commandfixer executable.
 func ProfileSnippet(binaryPath string) string {
 	return fmt.Sprintf(`%s
 Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
+    $cfBin = '%s'
     $line = $null; $cursor = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
-    if ($line.Trim() -ne '') {
-        $suggestion = & '%s' suggest "$line" 2>$null
+    if ($line.Trim() -ne '' -and (Test-Path -LiteralPath $cfBin)) {
+        $suggestion = & $cfBin suggest "$line" 2>$null
         if ($LASTEXITCODE -eq 0 -and $suggestion) {
             Write-Host ""
             Write-Host "CommandFixer: did you mean: $suggestion [Y/n] " -NoNewline -ForegroundColor Yellow
@@ -39,14 +42,14 @@ Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
             if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y' -or $key.Key -eq 'Enter') {
                 [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
                 [Microsoft.PowerShell.PSConsoleReadLine]::Insert($suggestion)
-                & '%s' log "$line" "$suggestion" 2>$null
+                & $cfBin log "$line" "$suggestion" 2>$null
             }
         }
     }
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
 }
 %s
-`, snippetStart, binaryPath, binaryPath, snippetEnd)
+`, snippetStart, binaryPath, snippetEnd)
 }
 
 // DefaultProfilePath returns the CurrentUserAllHosts PowerShell 7 profile path.
