@@ -65,6 +65,27 @@ Then **restart PowerShell** to complete removal.
 
 ---
 
+### Reinstall / Upgrade
+
+To upgrade to a new build (or reinstall after code changes), rebuild and re-run the installer. `install.ps1` is idempotent: it overwrites the existing binary with `-Force`, leaves your `PATH` entry and your config/log untouched, and refreshes the PowerShell profile hook for both PS7 and PS5.
+
+```powershell
+.\build.ps1 -Test        # rebuild commandfixer.exe (runs tests first)
+.\install.ps1            # overwrite the installed binary and refresh the hook
+```
+
+Then **restart PowerShell** so the new binary is picked up.
+
+For a clean reinstall that also resets your config and log, uninstall with `-RemoveConfig` first, then install:
+
+```powershell
+.\uninstall.ps1 -RemoveConfig
+.\build.ps1
+.\install.ps1
+```
+
+---
+
 ### 4. Configure
 
 Edit `%USERPROFILE%\.typo-fixer\config.json`:
