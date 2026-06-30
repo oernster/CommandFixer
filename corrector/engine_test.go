@@ -536,6 +536,39 @@ func TestSuggest_Standalone_Tasklist_Typo(t *testing.T) {
 	}
 }
 
+func TestSuggest_Ls_NeverSuggestsCls(t *testing.T) {
+	t.Parallel()
+	// "ls" is a valid PowerShell alias. It is one insertion from "cls" and must
+	// never be rewritten to it.
+	e := New(0)
+	for _, in := range []string{"ls", "ls -la", "ls C:\\Users", "ls somefile.txt"} {
+		result, found := e.Suggest(in)
+		if found {
+			t.Errorf("expected no suggestion for %q, got %q", in, result)
+		}
+		if result != in {
+			t.Errorf("expected %q unchanged, got %q", in, result)
+		}
+	}
+}
+
+func TestSuggest_PowerShellAliases_NoCorrection(t *testing.T) {
+	t.Parallel()
+	e := New(0)
+	for _, in := range []string{
+		"cat file.txt", "cp a b", "mv a b", "rm file.txt",
+		"pwd now", "ps -name foo", "clear screen",
+	} {
+		result, found := e.Suggest(in)
+		if found {
+			t.Errorf("expected no suggestion for %q, got %q", in, result)
+		}
+		if result != in {
+			t.Errorf("expected %q unchanged, got %q", in, result)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Suggest - command-name alias (gti -> git) and tool-name correction
 // ---------------------------------------------------------------------------

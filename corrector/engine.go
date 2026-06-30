@@ -205,6 +205,13 @@ var windowsCommands = []string{
 	"set", "setx", "sfc", "shutdown", "title",
 	// Miscellaneous
 	"assoc", "date", "msg", "pause", "print", "schtasks", "time",
+
+	// PowerShell POSIX-style aliases. These are valid commands in the target
+	// shell, so they must be recognised exactly and never "corrected" (for
+	// example "ls" is one insertion from "cls" and would otherwise be rewritten
+	// to it). Get-ChildItem, Get-Content, Copy-Item, etc.
+	"ls", "cat", "cp", "mv", "rm", "rmdir", "pwd", "ps", "clear",
+	"kill", "man", "tee", "diff", "curl", "wget", "sleep", "history",
 }
 
 // commandAliases maps habitual command-name typos to their intended command.
