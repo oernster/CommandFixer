@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CommandFixer: PowerShell Command Autocorrect for Windows</title>
+<meta name="description" content="CommandFixer is a lightweight Go binary that auto-corrects your common typing mistakes in PowerShell before commands execute. Fuzzy-matches typos against a built-in database of popular CLI tools, prompts for confirmation, then runs the fix. Local-first, no service, milliseconds.">
+<meta name="keywords" content="powershell, autocorrect, command line, typo, git, docker, kubectl, PSReadLine, Windows, Go, local-first, CLI, developer tools">
+<meta name="author" content="Oliver Ernster">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0c1320">
+<link rel="canonical" href="https://oernster.github.io/commandfixer/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CommandFixer">
+<meta property="og:title" content="CommandFixer: PowerShell Command Autocorrect for Windows">
+<meta property="og:description" content="Type git sattus, press Enter, and CommandFixer silently swaps it for git status, then runs it, if you approve. Works in PowerShell 7 and Windows PowerShell 5.">
+<meta property="og:url" content="https://oernster.github.io/commandfixer/">
+<meta property="og:image" content="https://oernster.github.io/commandfixer/assets/commandfixer.svg">
+<meta property="og:image:alt" content="The CommandFixer terminal icon">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="CommandFixer: PowerShell Command Autocorrect">
+<meta name="twitter:description" content="A lightweight Go binary that fixes your PowerShell typos before they run. Local-first, no service, milliseconds.">
+<meta name="twitter:image" content="https://oernster.github.io/commandfixer/assets/commandfixer.svg">
+<link rel="icon" type="image/svg+xml" href="assets/commandfixer.svg">
+<link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "CommandFixer", "applicationCategory": "DeveloperApplication", "operatingSystem": "Windows", "description": "CommandFixer is a lightweight Go binary that auto-corrects common typing mistakes in PowerShell before commands execute. It fuzzy-matches typed commands against a built-in database of popular CLI tools and Windows commands, prints the corrected form to a PSReadLine hook, and prompts for confirmation before running.", "url": "https://oernster.github.io/commandfixer/", "image": "https://oernster.github.io/commandfixer/assets/commandfixer.svg", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}, "author": {"@type": "Person", "name": "Oliver Ernster", "url": "https://www.crankthecode.com/"}, "audience": {"@type": "Audience", "audienceType": "Developers and power users on Windows PowerShell"}, "keywords": "powershell, autocorrect, typo, git, docker, PSReadLine, Windows, Go, CLI", "license": "https://www.gnu.org/licenses/gpl-3.0.html"}</script>
+</head>
+<body>
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top">
+      <img src="assets/commandfixer.svg" alt="CommandFixer icon">CommandFixer</a>
+    <nav class="nav-links">
+      <a href="#who">Who it's for</a>
+      <a href="#what">What it does</a>
+      <a href="#coverage">Coverage</a>
+      <a href="#start">Get started</a>
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main id="top">
+  <section class="hero">
+    <div class="container">
+      <img class="logo" src="assets/commandfixer.svg" alt="CommandFixer icon">
+      <h1>CommandFixer</h1>
+      <div class="tagline">PowerShell Command Autocorrect</div>
+      <p class="lede">A lightweight Go binary that catches your common typing
+        mistakes in PowerShell before they run. Type <code>git sattus</code>,
+        press Enter, and it swaps in <code>git status</code>, then runs it, once
+        you approve.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/oernster/commandfixer">View on GitHub</a>
+        <a class="btn btn-ghost" href="#start">Get started</a>
+      </div>
+      <p class="release-note">No system-wide keyboard hooks. No background
+        service. The binary runs in milliseconds.</p>
+      <div class="badges">
+        <span>Local-first</span>·<span>PowerShell 7 + Windows PowerShell 5</span>
+        ·<span>Single Go binary, no CGO</span>·<span>GPL-3.0</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="demo" class="alt">
+    <div class="container">
+      <div class="eyebrow">In one line</div>
+      <h2 class="section-title">The typo never reaches the shell</h2>
+      <p class="section-sub">CommandFixer hooks the Enter key through PSReadLine.
+        When the buffer looks like a near-miss of a command it knows, it shows the
+        corrected form and waits for a single keystroke before anything executes.</p>
+      <div class="termwrap">
+        <div class="terminal">
+          <div class="bar">
+            <i class="r"></i><i class="y"></i><i class="g"></i>
+            <span class="ttl">Windows PowerShell</span>
+          </div>
+<pre><span class="term-prompt">PS&gt;</span> git <span class="term-typo">sattus</span>
+<span class="term-muted">CommandFixer: did you mean</span> <span class="term-fix">git status</span> <span class="term-muted">[Y/n]</span> y
+<span class="term-ok">On branch main</span>
+<span class="term-muted">nothing to commit, working tree clean</span>
+
+<span class="term-prompt">PS&gt;</span> docker <span class="term-typo">imagse</span>
+<span class="term-muted">CommandFixer: did you mean</span> <span class="term-fix">docker images</span> <span class="term-muted">[Y/n]</span> y
+
+<span class="term-prompt">PS&gt;</span> <span class="term-typo">ipconfg</span> /all
+<span class="term-muted">CommandFixer: did you mean</span> <span class="term-fix">ipconfig /all</span> <span class="term-muted">[Y/n]</span> y</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="who">
+    <div class="container">
+      <div class="eyebrow">Who it is for</div>
+      <h2 class="section-title">For people who live in the terminal and mistype</h2>
+      <p class="section-sub">CommandFixer is a small quality-of-life tool for the
+        Windows command line. It corrects the near-misses you already know are
+        wrong the instant you see them, without changing how you work.</p>
+      <div class="split">
+        <div class="panel is-for">
+          <h3>It is for you if</h3>
+          <ul>
+            <li>You work daily in <b>PowerShell 7 or Windows PowerShell 5</b> and fumble subcommands like <code>git sattus</code> or <code>docker imagse</code>.</li>
+            <li>You want corrections to be <b>suggested, not silent</b>: it always asks before it runs the fix.</li>
+            <li>You want a tool that is <b>local and self-contained</b>, with no account, no telemetry and no background process.</li>
+            <li>You are comfortable installing a <b>single binary</b> that hooks your PowerShell profile and can be cleanly removed.</li>
+          </ul>
+        </div>
+        <div class="panel not-for">
+          <h3>It is not for you if</h3>
+          <ul>
+            <li>You are on <b>macOS or Linux</b>. CommandFixer targets Windows PowerShell profiles and PSReadLine.</li>
+            <li>You want it to <b>guess intent</b> or invent commands. It only corrects close matches to a known command set.</li>
+            <li>You want <b>fully silent auto-execution</b>. Corrections are confirmed by you, by design.</li>
+            <li>You expect a <b>GUI</b>. This is a CLI hook that stays out of your way.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="what" class="alt">
+    <div class="container">
+      <div class="eyebrow">How it works</div>
+      <h2 class="section-title">A built-in dictionary, not one you maintain</h2>
+      <p class="section-sub">Earlier versions asked you to list every typo by
+        hand. Version 2 ships a built-in database of popular CLI tools and their
+        valid subcommands, plus the standard Windows command set, and fuzzy-matches
+        against it. There is nothing to configure to get useful corrections.</p>
+      <div class="features">
+        <div class="feature"><div class="fnum">01</div><h3>Fuzzy matching</h3><p>Your command is compared to known subcommands by string similarity. A near-miss within a configurable threshold becomes a suggestion; anything too far off is left untouched.</p></div>
+        <div class="feature"><div class="fnum">02</div><h3>Always confirmed</h3><p>A changed command is never run silently. PSReadLine shows the corrected form and executes only after you press Enter to accept it.</p></div>
+        <div class="feature"><div class="fnum">03</div><h3>PS7 and PS5 together</h3><p>One install hooks both PowerShell 7 (<code>pwsh</code>) and Windows PowerShell 5 (<code>powershell.exe</code>) profiles at once. Uninstall cleanly removes both.</p></div>
+        <div class="feature"><div class="fnum">04</div><h3>Yours, on your machine</h3><p>A single Go binary with no CGO and no service. Config and a JSONL corrections log live under your home directory. Nothing leaves your machine.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="coverage">
+    <div class="container">
+      <div class="eyebrow">What it knows</div>
+      <h2 class="section-title">Popular CLI tools and the Windows command set</h2>
+      <p class="section-sub">Subcommands are corrected for these tools out of the
+        box. Standalone Windows commands (<code>dir</code>, <code>ipconfig</code>,
+        <code>tasklist</code> and many more) are matched by command name, and known
+        PowerShell aliases are recognised exactly so they are never "corrected".</p>
+      <div class="chips">
+        <span class="chip"><b>git</b></span>
+        <span class="chip"><b>docker</b></span>
+        <span class="chip"><b>kubectl</b></span>
+        <span class="chip"><b>npm</b></span>
+        <span class="chip"><b>yarn</b></span>
+        <span class="chip"><b>cargo</b></span>
+        <span class="chip"><b>go</b></span>
+        <span class="chip"><b>pip</b></span>
+        <span class="chip"><b>terraform</b></span>
+        <span class="chip"><b>helm</b></span>
+        <span class="chip"><b>az</b></span>
+        <span class="chip"><b>aws</b></span>
+        <span class="chip"><b>gcloud</b></span>
+        <span class="chip"><b>winget</b></span>
+        <span class="chip"><b>choco</b></span>
+        <span class="chip"><b>scoop</b></span>
+        <span class="chip"><b>net</b></span>
+        <span class="chip"><b>sc</b></span>
+        <span class="chip"><b>reg</b></span>
+        <span class="chip"><b>netsh</b></span>
+        <span class="chip">+ Windows commands</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="start" class="alt">
+    <div class="container">
+      <div class="eyebrow">Get started</div>
+      <h2 class="section-title">Build, install, restart</h2>
+      <p class="section-sub">CommandFixer is a Go program with no external
+        dependencies. Clone it, build the binary, and run the installer. It hooks
+        your profile per-user with no administrator rights.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Build</h3>
+            <p>Run <code>.\build.ps1 -Test</code> to run the tests and build, or <code>go build -o commandfixer.exe .</code> directly.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Install</h3>
+            <p><code>.\install.ps1</code> copies the binary to <code>%LOCALAPPDATA%\CommandFixer\</code>, adds it to your user PATH, writes a starter config, and hooks both the PS7 and PS5 profiles.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Restart PowerShell</h3>
+            <p>Open a fresh session so the profile hook loads. Now mistype a command and press Enter: the correction appears before it runs.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Uninstall any time</h3>
+            <p><code>.\uninstall.ps1</code> removes the hook from both profiles, deletes the binary and its PATH entry, and keeps your config and log. Add <code>-RemoveConfig</code> to remove those too.</p>
+          </div>
+        </div>
+      </div>
+      <div class="codeblock">
+<pre><span class="c"># Clone, test and build</span>
+git clone https://github.com/oernster/commandfixer
+cd commandfixer
+.\build.ps1 <span class="p">-Test</span>
+
+<span class="c"># Install the hook for PowerShell 7 and Windows PowerShell 5</span>
+.\install.ps1
+
+<span class="c"># Check a correction by hand (no hook needed)</span>
+commandfixer correct <span class="p">"git sattus"</span>   <span class="c"># prints: git status</span>
+
+<span class="c"># See how many corrections it has made</span>
+commandfixer stats</pre>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="container footer-inner">
+    <div>
+      <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
+      (c) 2026 Oliver Ernster · Local-first · GPL-3.0 · v2.0.0
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+      <a href="https://oernster.github.io/">Project hub</a>
+      <a href="https://www.crankthecode.com/">crankthecode.com</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
