@@ -1,0 +1,21 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CommandFixer icon">
+  <defs>
+    <linearGradient id="cf-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12325a"/>
+      <stop offset="1" stop-color="#0a1626"/>
+    </linearGradient>
+    <linearGradient id="cf-stroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4fc3f7"/>
+      <stop offset="1" stop-color="#2d8ceb"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="url(#cf-bg)" stroke="#1e4a80" stroke-width="3"/>
+  <!-- terminal chevron prompt -->
+  <path d="M74 92 L112 128 L74 164" fill="none" stroke="url(#cf-stroke)" stroke-width="18"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- cursor / command line -->
+  <rect x="126" y="150" width="60" height="16" rx="8" fill="#4fc3f7"/>
+  <!-- green "corrected" tick -->
+  <path d="M150 96 L168 116 L204 74" fill="none" stroke="#6ccb5f" stroke-width="16"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
