@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why CommandFixer exists: the typo tax, cancelled at Enter</title>
+<meta name="description" content="Why CommandFixer was built: command-line muscle memory produces the same small typos hundreds of times and each one costs a failed run and a broken train of thought. CommandFixer corrects them in the gap between Enter and execution, with your approval.">
+<meta name="author" content="Oliver Ernster">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0c1320">
+<link rel="canonical" href="https://ernster.dev/CommandFixer/why.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CommandFixer">
+<meta property="og:title" content="Why CommandFixer exists: the typo tax, cancelled at Enter">
+<meta property="og:description" content="Command-line muscle memory produces the same small typos hundreds of times. CommandFixer corrects them in the gap between Enter and execution, with your approval.">
+<meta property="og:url" content="https://ernster.dev/CommandFixer/why.html">
+<meta property="og:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="The CommandFixer terminal icon">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Why CommandFixer exists">
+<meta name="twitter:description" content="Command-line muscle memory produces the same small typos hundreds of times. CommandFixer corrects them in the gap between Enter and execution, with your approval.">
+<meta name="twitter:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
+<link rel="icon" type="image/svg+xml" href="assets/commandfixer.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="index.html">
+      <img src="assets/commandfixer.svg" alt="CommandFixer icon">CommandFixer</a>
+    <nav class="nav-links">
+      <a href="index.html#who">Who it's for</a>
+      <a href="index.html#what">What it does</a>
+      <a href="why.html">Why</a>
+      <a href="index.html#start">Get started</a>
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section id="exists">
+    <div class="container prose">
+      <div class="eyebrow">The reasoning</div>
+      <h2 class="section-title">Why this exists</h2>
+      <p>Command-line muscle memory produces the same small typos hundreds of times: git sattus,
+        docker imagse, transposed letters in commands typed dozens of times a day. Each one costs
+        a failed run, a re-type and a broken train of thought. A corrector that fires after the
+        error message has scrolled past is documentation; the only useful place to fix a typo is
+        the gap between Enter and execution.</p>
+      <p>CommandFixer lives in exactly that gap. A PSReadLine hook intercepts Enter and hands the
+        buffer to a fast Go binary, which fuzzy-matches it against a built-in database of popular
+        CLI tools and their subcommands plus the standard Windows command set. A near-miss within
+        the threshold becomes a suggestion shown before anything runs; anything too far off is
+        left untouched and known PowerShell aliases are recognised exactly so they are never
+        "corrected". The first version asked you to list every typo by hand; version 2 ships the
+        dictionary, so useful corrections need no configuration at all.</p>
+      <p>The boundary that matters most is consent. A changed command never runs silently: the
+        corrected form is shown and executes only when you accept it, because a tool that guesses
+        at a prompt that can delete things is a tool you eventually uninstall. The same restraint
+        shapes the scope: it corrects near-misses of commands it knows and never invents intent.</p>
+      <p>What works now is a single Go binary with no CGO, no system-wide keyboard hook and no
+        background service, running in milliseconds only in the instant it is needed. One
+        per-user install hooks both PowerShell 7 and Windows PowerShell 5 profiles with no
+        administrator rights; config and a JSONL corrections log live under your home directory
+        and uninstalling removes the hook cleanly while leaving your data yours.</p>
+      <p>Full reasoning at <a href="https://www.crankthecode.com/posts/commandfixer">crankthecode.com</a>.</p>
+      <div class="cta" style="justify-content:flex-start;margin-top:30px;">
+        <a class="btn btn-primary" href="https://github.com/oernster/commandfixer">View on GitHub</a>
+        <a class="btn btn-ghost" href="index.html">Back to overview</a>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="container footer-inner">
+    <div>
+      <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v2.0.0
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+      <a href="https://ernster.dev/">Project hub</a>
+      <a href="https://www.crankthecode.com/">crankthecode.com</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
