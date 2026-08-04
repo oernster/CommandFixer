@@ -172,3 +172,4 @@ commandfixer correct "git sattus"
 - [DEVELOPMENT.md](DEVELOPMENT.md) - build steps, local dev workflow, debugging
 - [ARCHITECTURE.md](ARCHITECTURE.md) - system design, module breakdown, data flow
 - [TESTING.md](TESTING.md) - testing strategy, coverage requirements, how to run tests
+- [TECH_DEBT.md](TECH_DEBT.md) - what is still open, what is deliberately left and what only looks like debt
