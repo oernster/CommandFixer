@@ -40,6 +40,26 @@ func TestProfileSnippet_ContainsPSReadLineCall(t *testing.T) {
 	}
 }
 
+func TestProfileSnippet_ContainsCompletenessGuard(t *testing.T) {
+	t.Parallel()
+	// The hook must parse the final buffer and refuse to submit incomplete
+	// input, so a stray trailing backtick never opens the '>>' continuation
+	// prompt. The guard is identified by the parser call and the exact
+	// IncompleteInput signal the console host uses.
+	snip := ProfileSnippet(`C:\tools\commandfixer.exe`)
+	if !strings.Contains(snip, "ParseInput") {
+		t.Error("snippet missing Parser.ParseInput completeness check")
+	}
+	if !strings.Contains(snip, "IncompleteInput") {
+		t.Error("snippet missing IncompleteInput guard")
+	}
+	// The backtick must be expressed as [char]96, never a literal backtick
+	// (the snippet is a Go raw string and could not contain one anyway).
+	if !strings.Contains(snip, "[char]96") {
+		t.Error("snippet missing [char]96 backtick strip in the repair pass")
+	}
+}
+
 func TestProfileSnippet_GuardsMissingBinary(t *testing.T) {
 	t.Parallel()
 	// The hook must verify the binary exists before invoking it, so an

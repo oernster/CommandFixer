@@ -25,6 +25,27 @@ var ErrNotInstalled = errors.New("CommandFixer not found in PowerShell profile")
 // user to confirm before applying any correction. The handler first verifies
 // the binary still exists (Test-Path), so an uninstalled or moved executable
 // fails silently instead of raising an error on every keystroke.
+//
+// After any suggestion, a completeness guard closes both routes to the '>>'
+// continuation prompt:
+//
+//  1. A trailing backtick escapes the newline that Enter is about to add, which
+//     opens '>>'. The parser only reports this as incomplete once that newline
+//     exists, so it cannot be caught by IncompleteInput at this point. Any
+//     trailing backtick is therefore stripped unconditionally (it is never
+//     wanted on an interactive one-liner) and the cleaned line submitted.
+//  2. Genuinely unterminated input (unclosed quote, dangling pipe, unbalanced
+//     brace) is detected by parsing the buffer with PowerShell's own parser and
+//     inspecting ParseError.IncompleteInput, the exact signal the console host
+//     uses to open '>>'. Such input is held on the current line (a short beep,
+//     no AcceptLine) so the user can edit or press Esc.
+//
+// AcceptLine is therefore never reached on input that would continue, so the
+// continuation prompt is structurally unreachable.
+//
+// The backtick is expressed as [char]96 because this snippet is a Go raw
+// string literal and cannot contain a literal backtick.
+//
 // binaryPath must be the full path to the commandfixer executable.
 func ProfileSnippet(binaryPath string) string {
 	return fmt.Sprintf(`%s
@@ -44,6 +65,24 @@ Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
                 [Microsoft.PowerShell.PSConsoleReadLine]::Insert($suggestion)
                 & $cfBin log "$line" "$suggestion" 2>$null
             }
+        }
+    }
+    $cfBuf = $null; $cfPos = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$cfBuf, [ref]$cfPos)
+    if ($cfBuf -ne $null -and $cfBuf.Trim() -ne '') {
+        $cfBacktick = [char]96
+        $cfTrimmed = $cfBuf.TrimEnd()
+        $cfNoBt = $cfTrimmed.TrimEnd($cfBacktick).TrimEnd()
+        if ($cfNoBt -ne $cfTrimmed) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($cfNoBt)
+            $cfBuf = $cfNoBt
+        }
+        $cfTok = $null; $cfErr = $null
+        [System.Management.Automation.Language.Parser]::ParseInput($cfBuf, [ref]$cfTok, [ref]$cfErr)
+        if ($cfBuf -ne '' -and @($cfErr | Where-Object { $_.IncompleteInput }).Count -gt 0) {
+            [System.Console]::Beep(800, 150)
+            return
         }
     }
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
