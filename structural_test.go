@@ -8,13 +8,28 @@ package main
 // British spelling is used in comments.
 
 import (
+	"bufio"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// lineCap is the size a file may reach and no further. It applies to test
+// files exactly as to source: a 672-line test file is as hard to navigate as a
+// 672-line implementation, and harder to be sure is complete.
+const lineCap = 400
+
+// dangerBandPercent is how far below the cap a file is already too close to it.
+const dangerBandPercent = 5
+
+// dangerBandFloor is the last comfortable size. Derived from the cap rather
+// than written as a second literal, so the two can never drift apart: change
+// the cap and the band follows.
+const dangerBandFloor = lineCap - (lineCap * dangerBandPercent / 100)
 
 // modulePath is the import prefix every package in this repository shares.
 const modulePath = "github.com/oernster/commandfixer"
@@ -150,6 +165,89 @@ func TestEveryLeafPackageIsCovered(t *testing.T) {
 				"package %s exists but is not in leafPackages, so no"+
 					" structural rule reaches it",
 				entry.Name(),
+			)
+		}
+	}
+}
+
+// countLines returns the number of lines in a file.
+func countLines(t *testing.T, path string) int {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("opening %s: %v", path, err)
+	}
+	defer file.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), bufio.MaxScanTokenSize)
+	for scanner.Scan() {
+		count++
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	return count
+}
+
+// everyGoFile walks the repository, skipping hidden directories.
+func everyGoFile(t *testing.T) []string {
+	t.Helper()
+	var files []string
+	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != "." && strings.HasPrefix(entry.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".go") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the repository: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no Go files found, so this test is checking nothing")
+	}
+	return files
+}
+
+// TestNoFileExceedsTheLineCap is the first half of the size rule.
+func TestNoFileExceedsTheLineCap(t *testing.T) {
+	t.Parallel()
+	for _, file := range everyGoFile(t) {
+		if lines := countLines(t, file); lines > lineCap {
+			t.Errorf("%s is %d lines, over the cap of %d", file, lines, lineCap)
+		}
+	}
+}
+
+// TestNoFileSitsJustBelowTheLineCap is the second half, and the half that is
+// easy to argue away.
+//
+// Shaving a file to 399 buys nothing: the next edit breaks it and the same
+// file gets decomposed again, so the work is paid for twice and the reader
+// still has a 399-line file in between. A file that has to be split is split
+// properly, to a size with room in it.
+//
+// The cap itself stays legal, because 400 is the stated target rather than a
+// number to creep up on. It is the approach to it that this refuses.
+func TestNoFileSitsJustBelowTheLineCap(t *testing.T) {
+	t.Parallel()
+	for _, file := range everyGoFile(t) {
+		lines := countLines(t, file)
+		if lines > dangerBandFloor && lines < lineCap {
+			t.Errorf(
+				"%s is %d lines, inside the danger band %d to %d:"+
+					" decompose it to a size with room in it, not to %d",
+				file, lines, dangerBandFloor+1, lineCap-1, lineCap-1,
 			)
 		}
 	}

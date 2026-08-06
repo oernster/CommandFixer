@@ -1,6 +1,6 @@
 # Architecture
 
-System design, module breakdown, and data flow for CommandFixer.
+System design, module breakdown and data flow for CommandFixer.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for build and local dev steps.
 See [TESTING.md](TESTING.md) for testing strategy.
@@ -11,10 +11,14 @@ See [TESTING.md](TESTING.md) for testing strategy.
 
 CommandFixer is a single Go binary. When invoked by the PowerShell profile hook, it:
 
-1. Reads the user's typo dictionary from `config.json`.
-2. Applies correction rules to the command string.
-3. Prints the (possibly corrected) command to stdout.
-4. Logs the correction to a JSONL file if a change was made.
+1. Reads its settings (the similarity threshold and the log path) from `config.json`.
+2. Fuzzy-matches the command against a built-in database of CLI tools, their
+   subcommands and the standard Windows commands.
+3. Prints the corrected command to stdout when one is close enough.
+4. Logs the correction to a JSONL file if the user accepted a change.
+
+There is no typo dictionary to maintain. The database is compiled in, which is
+what makes the tool useful before any configuration exists.
 
 The PowerShell profile hook reads the printed output and replaces the input buffer before execution.
 
@@ -29,7 +33,7 @@ User types command + Enter
  PSReadLine intercepts Enter key
          |
          v
- Calls: commandfixer.exe correct "<buffer>"
+ Calls: commandfixer.exe suggest "<buffer>"
          |
          v
  +--------------------------+
@@ -37,38 +41,41 @@ User types command + Enter
  +--------------------------+
          |
          v
- +--------------------------+
- |  corrector.New(cfg)      |  compiles rules (pre-compiles regex patterns)
- +--------------------------+
+ +----------------------------------+
+ |  corrector.New(cfg.Settings      |  builds an engine at the configured
+ |    .SimilarityThreshold)         |  similarity threshold
+ +----------------------------------+
          |
          v
- +--------------------------+
- |  engine.Correct(cmd)     |  applies rules in order, returns Result
- +--------------------------+
-         |         |
-         |         v (if Changed)
-         |  logger.Log(original, corrected, rule)  -->  corrections.log
+ +----------------------------------+
+ |  engine.Suggest(cmd)             |  alias, then subcommand, then tool name;
+ |                                  |  returns the command and whether it moved
+ +----------------------------------+
          |
          v
- Prints result.Corrected to stdout (exit 0)
+ Prints the suggestion to stdout or nothing at all (exit 0)
          |
          v
  PSReadLine reads stdout
          |
-    changed?
-    /       \
-  yes        no
-   |          |
-   v          v
- Shows       Accepts
- "Corrected: original command
- X -> Y"     directly
+   a suggestion?
+    /          \
+  yes           no
+   |             |
+   v             v
+ Shows         Accepts the
+ "did you      original command
+  mean: X"     directly
    |
    v
- Replaces buffer with corrected command
+ Waits for Y or n
+   |
+   v (only on Y)
+ Replaces the buffer, then calls
+ commandfixer.exe log "<from>" "<to>"  -->  corrections.log
    |
    v
- Executes corrected command
+ Executes the corrected command
 ```
 
 ---
@@ -82,7 +89,7 @@ Entry point and CLI dispatcher.
 **Responsibilities:**
 - Parse `os.Args`
 - Resolve the default config path via `config.DefaultConfigPath()`
-- Route to the correct command handler: `correct`, `install`, `uninstall`, `stats`, `version`, `help`
+- Route to the correct command handler: `suggest`, `correct`, `log`, `install`, `uninstall`, `stats`, `version`, `help`
 - Print usage
 
 **Key design decision:** `dispatch(args, cfgPath)` is separate from `main()` so tests can inject a temporary config path without touching the real filesystem.
@@ -95,7 +102,9 @@ Entry point and CLI dispatcher.
 |----------|------|
 | `run(args)` | Resolves default config path, calls `dispatch` |
 | `dispatch(args, cfgPath)` | Routes commands; injectable for tests |
+| `cmdSuggest(args, cfgPath)` | The machine-facing command the prompt hook calls; prints a suggestion or nothing |
 | `cmdCorrect(args, cfgPath)` | Load config, correct, log |
+| `cmdLog(args, cfgPath)` | Record an accepted correction |
 | `cmdInstall(args)` | Write PS profile hook |
 | `cmdUninstall(args)` | Remove PS profile hook |
 | `cmdStats(cfgPath)` | Aggregate and print log stats |
@@ -105,32 +114,26 @@ Entry point and CLI dispatcher.
 
 ### `config` (config/loader.go)
 
-Loads, validates, and saves the JSON typo dictionary.
+Loads, validates and saves the JSON settings file.
 
 **Data structures:**
 
 ```go
-type TypoEntry struct {
-    From  string // literal string or regex pattern to match
-    To    string // replacement string
-    Regex bool   // if true, From is a regexp.Compile pattern
-}
-
 type Settings struct {
-    LogFile         string // path to JSONL corrections log
-    ShowCorrections bool   // whether the PS hook announces changes
-    MaxLogLines     int    // soft cap for log size (future rotation)
+    LogFile             string  // path to the JSONL corrections log
+    MaxLogLines         int     // soft cap for log size (rotation not implemented)
+    SimilarityThreshold float64 // (0.0, 1.0]; how close a match must be
 }
 
 type Config struct {
-    Typos    []TypoEntry
     Settings Settings
 }
 ```
 
 **Key design decisions:**
 
-- `LoadOrDefault` returns a zero-typo config (not an error) when the file is missing. This lets the binary work on a fresh machine without the user creating config first.
+- **Settings only, no dictionary.** The command database is compiled in, so config exists to tune behaviour rather than to supply it. This is the change that made the tool useful on first run: there is nothing a user must write before it does anything.
+- `LoadOrDefault` returns defaults (not an error) when the file is missing. This lets the binary work on a fresh machine without the user creating config first.
 - `applyDefaults()` is called unconditionally after every load, so partial configs (missing `log_file`, etc.) always have safe values.
 - `Save` creates parent directories: the user never needs to `mkdir` manually.
 
@@ -146,45 +149,43 @@ type Config struct {
 
 ---
 
-### `corrector` (corrector/engine.go)
+### `corrector` (corrector/engine.go, database.go, distance.go)
 
-Compiles typo rules and applies them to command strings.
+Fuzzy-matches a typed command against a built-in database of tools and their
+subcommands and returns the corrected form when one is close enough.
+
+Three files along one seam each, so that adding a tool never touches the
+matching logic and changing the metric never touches either:
+
+| File | Holds |
+|------|-------|
+| `database.go` | The data: known tools and their subcommands, the Windows standalone commands, the habitual-typo aliases |
+| `engine.go` | The policy: what to correct, in what order and when to leave a command alone |
+| `distance.go` | The metric: Damerau-Levenshtein distance and the similarity score derived from it |
 
 **Data structures:**
 
 ```go
-type Result struct {
-    Original  string // command before any correction
-    Corrected string // command after all rules applied
-    Changed   bool   // true if at least one rule fired
-    RuleFrom  string // last rule that fired (From field)
-    RuleTo    string // last rule that fired (To field)
-}
-
 type Engine struct {
-    rules []compiledRule // pre-compiled rules
-}
-
-type compiledRule struct {
-    entry config.TypoEntry
-    regex *regexp.Regexp // non-nil for regex rules only
+    threshold float64 // minimum similarity for a correction to apply
 }
 ```
 
 **Key design decisions:**
 
-- **All rules apply in sequence.** Each rule's output feeds the next. Multiple typos in one command are corrected in one pass.
-- **Literal rules use `strings.ReplaceAll`**, not equality. So `"git sattus"` in the dictionary corrects `"git sattus -v"` (substring match).
-- **Regex rules use `regexp.ReplaceAllString`**, supporting capture groups (`$1`, etc.).
-- **Regex compiled eagerly** in `New()`. Invalid patterns fail fast at startup rather than silently at correction time.
-- **Result records the last firing rule** (not all rules). This is sufficient for log attribution; full rule chain logging is a future enhancement.
+- **No user dictionary is required.** Correction comes from the built-in database rather than from rules a user has to write, which is what makes the tool useful on first run.
+- **Correction is tried in a fixed order**: an unconditional alias (`gti` to `git`), then subcommand correction when the first token is a known tool, then tool-name correction against both the known tools and the Windows standalone commands, with the closer of the two winning and ties going to the CLI tool.
+- **An exact match is never "corrected".** A token that already appears in the database is left alone, which is why the PowerShell POSIX-style aliases are listed explicitly: `ls` is one insertion from `cls` and would otherwise be rewritten to it.
+- **Damerau-Levenshtein rather than plain Levenshtein**, so a transposition counts as one edit. Typing mistakes are mostly transpositions (`psuh`, `gti`); plain Levenshtein scores those as two.
+- **The engine is pure computation over strings**: no filesystem, no environment, no clock. That is why its tests are a plain table with no fixture; `structural_test.go` enforces it rather than trusting it.
 
 **Exported functions:**
 
 | Function | Description |
 |----------|-------------|
-| `New(cfg)` | Compile all rules; error if any regex is invalid |
-| `engine.Correct(cmd)` | Apply rules, return Result |
+| `New(threshold)` | Build an engine; a zero or out-of-range threshold applies the default (0.6) |
+| `engine.Threshold()` | The similarity threshold in use |
+| `engine.Suggest(cmd)` | The corrected command and whether anything changed |
 
 ---
 
@@ -196,6 +197,7 @@ Generates and manages the PowerShell profile hook.
 
 - The hook uses `Set-PSReadLineKeyHandler -Key Enter`. This is the standard PSReadLine API for intercepting keystrokes. It requires PowerShell 7 with PSReadLine 2.x (shipped by default).
 - The snippet is delimited by exact start/end marker strings. This makes install idempotent (detects existing hook) and makes uninstall reliable (removes the exact block).
+- Those markers exist in two languages and have to. The binary writes and removes the block but `uninstall.ps1` must still work when the binary is already gone, so it carries a fallback that strips the block itself. The scripts define their copy once in `profile-hook.ps1`; `shell/markers_test.go` reads that file and fails if the Go constants drift from it. A marker changed on one side only would leave a hook line nothing can find to remove, running on every prompt a user types.
 - `readProfileSafe` treats `os.IsNotExist` as an empty profile. Users who have never set up a PS profile are handled without error.
 - `removeSnippet` handles edge cases: snippet at start (no content before it), snippet at end, missing end marker (truncates from start marker).
 
@@ -263,11 +265,15 @@ None. CommandFixer uses only the Go standard library:
 | `fmt` | Error formatting and output |
 | `os` | File I/O, executable path, home directory |
 | `path/filepath` | Cross-platform path construction |
-| `regexp` | Regex rule compilation and matching |
-| `strings` | Literal rule matching via `strings.ReplaceAll` |
+| `strings` | Tokenising a command and rejoining it |
+| `sort` | Deterministic ordering of the known tool names |
 | `sync` | Logger mutex |
 | `time` | Log timestamps |
 | `errors` | Sentinel error values |
+
+Test-only and not linked into the binary: `go/parser` and `go/token` for the
+import-boundary scan, `bufio` and `io/fs` for the file-size scan; `regexp`
+for reading a value out of `profile-hook.ps1`.
 
 ---
 
@@ -323,7 +329,11 @@ Add a `service` command to `dispatch()`. Use `net/http` with a `/correct` endpoi
 
 ### Adding case-insensitive matching
 
-Add `CaseInsensitive bool` to `TypoEntry`. In `corrector.New`, wrap literal rules with `(?i)` regex or use `strings.EqualFold` + manual offset matching.
+Fold both sides in `similarity` before measuring, in `distance.go`, so nothing
+else in the package has to know. Note that this changes what "exact match" means
+in `suggestToolName` and `correctSubcommand`, which currently compare with `==`:
+those checks are what stop a valid command being rewritten, so they would need
+folding in the same change or the two would disagree.
 
 ### Adding log rotation
 

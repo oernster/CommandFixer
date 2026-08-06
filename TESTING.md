@@ -1,6 +1,6 @@
 # Testing Guide
 
-Testing strategy, coverage requirements, and how to run tests for CommandFixer.
+Testing strategy, coverage requirements and how to run tests for CommandFixer.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for build setup.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for module design.
@@ -9,9 +9,30 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module design.
 
 ## Coverage Target
 
-**100% of all reachable branches in every package.**
+**A floor of 83%, enforced by `.\build.ps1 -Coverage`, which exits non-zero below it.**
 
-The only legitimate exclusion is the `main()` function itself: it calls `os.Exit(1)` on error, which cannot be tested within the same process without reflection tricks. `main()` is a 3-line wrapper around `run()`, which is fully tested. All other functions are covered.
+The floor is the level the suite already holds, not an aspiration. A number
+picked from ambition gets lowered the first time it blocks someone, which
+teaches everyone that the gate is advisory. The current position:
+
+| Package | Coverage |
+|---------|----------|
+| `corrector` | 100% |
+| `config` | 92.1% |
+| `logger` | 91.4% |
+| `shell` | 87.7% |
+| `main` | 65.3% |
+| **total** | **83.5%** |
+
+`corrector` is at 100% because it is pure computation over strings with nothing
+to arrange. `main` is lowest because `cmdInstall` and `cmdUninstall` write to a
+real user's PowerShell profile; the parts of them that are exercised are the
+parts that can be pointed at a temporary file.
+
+`main()` itself is excluded: it calls `os.Exit(1)`, which would terminate the
+test process. It is a three-line wrapper around `run()`, which is tested.
+
+Raise the floor when the suite earns it. Never lower it to make a run pass.
 
 ---
 
@@ -42,17 +63,24 @@ go test -v ./...
 ### Single test
 
 ```powershell
-go test -v -run TestCorrect_LiteralMatch ./corrector/
+go test -v -run TestSuggest_GitStatus_Typo ./corrector/
 go test -v -run TestInstall ./shell/
 ```
 
 ### Race detector
 
 ```powershell
-go test -race ./...
+.\build.ps1 -Race
 ```
 
-The Logger uses `sync.Mutex`. The race detector verifies no concurrent map/slice access escapes the mutex.
+The Logger uses `sync.Mutex`. The race detector verifies no concurrent map or
+slice access escapes the mutex.
+
+**This needs a C toolchain and will not run without one.** Go's race detector
+requires cgo and this project is deliberately CGO-free, so on a machine with no
+gcc the command exits with `-race requires cgo` rather than running. That is an
+environment limitation and not a fault in the suite: everything else, including
+the coverage gate, runs without a C compiler.
 
 ---
 
@@ -65,14 +93,18 @@ go test -coverprofile=coverage.out -covermode=atomic ./...
 go tool cover -func=coverage.out
 ```
 
-Expected output (all lines should show 100.0%):
+The last line is the one the gate reads:
 
 ```
-github.com/oernster/commandfixer/config/loader.go:DefaultConfigDir     100.0%
-github.com/oernster/commandfixer/config/loader.go:DefaultConfigPath    100.0%
+github.com/oernster/commandfixer/corrector/engine.go:Suggest           100.0%
+github.com/oernster/commandfixer/main.go:cmdInstall                     36.0%
 ...
-total:                                                                  100.0%
+total:                                                                  83.5%
 ```
+
+Note the quoting. Unquoted, PowerShell splits `-coverprofile=coverage.out` at
+the dot and hands go `.out` as a package name, which fails and leaves a
+truncated file called `coverage` behind. `build.ps1` quotes both flags.
 
 ### HTML report (clickable line-by-line)
 
@@ -96,10 +128,22 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | File | Tests for |
 |------|-----------|
 | `config/loader_test.go` | `config` package |
-| `corrector/engine_test.go` | `corrector` package |
-| `shell/powershell_test.go` | `shell` package (including unexported helpers) |
+| `corrector/engine_test.go` | Correction policy: what Suggest decides to do |
+| `corrector/windows_test.go` | Correction over the Windows entries, both subcommand tools and standalone commands |
+| `corrector/distance_test.go` | The string metric alone |
+| `shell/powershell_test.go` | The hook snippet, the profile paths and the read-only operations |
+| `shell/install_test.go` | The operations that change a user's profile |
+| `shell/markers_test.go` | That the Go markers and paths still match `profile-hook.ps1` |
 | `logger/stats_test.go` | `logger` package |
-| `main_test.go` | `main` package CLI dispatch |
+| `main_test.go` | CLI routing and the shared helpers |
+| `commands_test.go` | The suggest, correct, log and stats commands |
+| `install_test.go` | The two commands that write to a PowerShell profile |
+| `structural_test.go` | Import boundaries and file size, over the repository itself |
+
+The split is by concern rather than by file size, though size is what forced it:
+four files had passed 400 lines with nothing measuring them. `structural_test.go`
+now fails both above the cap and in the band just below it, so a file cannot be
+shaved to 399 and break again on the next edit.
 
 ---
 
@@ -118,22 +162,30 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | `Save` | Success, `MkdirAll` fails (regular file used as parent dir), `os.WriteFile` fails (directory at file path) |
 | `applyDefaults` | `LogFile` empty (set default), `LogFile` non-empty (preserve), `MaxLogLines` zero (set 10000), `MaxLogLines` non-zero (preserve) |
 
-**Known untestable branch:** `json.MarshalIndent` on a plain `Config` struct cannot return an error. The error check exists as defensive code. Coverage tools will flag it as covered because the function executes, but the error path is unreachable in practice.
+**Known untestable branch:** `json.MarshalIndent` on a plain `Config` struct cannot return an error. The error check exists as defensive code. Coverage tools will flag it as covered because the function executes but the error path is unreachable in practice.
 
 ---
 
 ### corrector
 
-**Approach:** Pure logic, no file I/O. All tests use in-memory `config.Config` values.
+**Approach:** Pure logic, no file I/O and no fixtures. Every test is a plain call
+with strings in and strings out, which is the whole reason `structural_test.go`
+forbids this package from importing anything that reaches outside the process.
 
 **Branches covered:**
 
 | Function | Branch |
 |----------|--------|
-| `New` | Empty config, literal rules only, valid regex, invalid regex (compile error) |
-| `Correct` | No rules, no match, literal substring match, literal full match, multiple rules both fire, regex match, regex no match, regex with capture group, mixed literal + regex |
-| Rule recording | Last-fired rule stored in `RuleFrom`/`RuleTo` |
-| Edge cases | Empty command, original preserved |
+| `New` | Zero threshold (default applied), negative, above one, valid, exactly one |
+| `Suggest` | Empty input, single token, unknown tool, exact subcommand (no correction), too dissimilar, below a custom threshold |
+| Subcommand correction | Typos across git, docker, kubectl and the trailing arguments preserved |
+| Tool-name correction | Mistyped tool alone, mistyped tool plus mistyped subcommand |
+| Command aliases | `gti` to `git`, unconditionally, with the subcommand then corrected |
+| Windows subcommand tools | winget, choco, scoop, net, sc, reg, netsh |
+| Windows standalone commands | dir, mkdir, copy, ipconfig, tasklist, arguments preserved, below threshold left alone |
+| PowerShell aliases | `ls` never becomes `cls`; the alias set is never corrected |
+| `similarity` | Equal strings, empty strings, wholly different, either side of the default threshold |
+| `damerauLevenshtein` | Both empty, one empty, equal, single deletion, known distance, adjacent transposition |
 
 ---
 
@@ -178,8 +230,10 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | Function | Branch |
 |----------|--------|
 | `run` | Help command smoke (exercises `config.DefaultConfigPath` in real env) |
-| `dispatch` | No args, `help`, `--help`, `-h`, `version`, `--version`, `-v`, unknown command |
-| `cmdCorrect` | No args (error), no match (unchanged), match with log write, multi-word input joined, missing config (LoadOrDefault default), bad JSON config (error), invalid regex in config (error) |
+| `dispatch` | No args, `help`, `--help`, `-h`, `version`, `--version`, `-v`, `suggest`, `log`, unknown command |
+| `cmdSuggest` | No args, known typo, exact command (no output), unknown tool (no output), multi-word input joined, bad config (error), missing config (default used) |
+| `cmdCorrect` | No args (error), no match (unchanged), match with log write, multi-word input joined, missing config (LoadOrDefault default), bad JSON config (error) |
+| `cmdLog` | No args (error), one arg (error), entry written, bad config (error), missing config (default used) |
 | `cmdInstall` | Explicit profile path (success), already installed (error forwarded) |
 | `cmdUninstall` | Explicit profile path (success), not installed (error forwarded) |
 | `cmdStats` | Empty log (zero output), with entries (non-zero output), bad config (error) |
@@ -197,7 +251,7 @@ CommandFixer is designed to avoid mocking:
 - **`os.Executable()`**: Returns the test binary path in test context. Fine for verifying profile content.
 - **`os.UserHomeDir()`**: Called in `DefaultConfigDir/Path` and `DefaultProfilePath`. These are only tested for format (suffix/contains), not for exact value. No mocking needed.
 - **Time**: `logger.Log` timestamps are checked via before/after bounds in tests, not exact values.
-- **Regex compilation**: Tested with both valid and invalid patterns; no mocking of `regexp.Compile`.
+- **The correction engine**: nothing to mock. It takes a string and returns a string, so its tests are direct calls. `structural_test.go` keeps it that way.
 
 ---
 
@@ -206,15 +260,12 @@ CommandFixer is designed to avoid mocking:
 No external fixture files. All test data is defined inline:
 
 ```go
-// Inline config for corrector tests
-cfg := &config.Config{
-    Typos: []config.TypoEntry{
-        {From: "git sattus", To: "git status"},
-    },
-}
+// Corrector tests need no config at all: the database is compiled in.
+engine := corrector.New(0.6)
+got, changed := engine.Suggest("git sattus")
 
 // Inline JSON for config tests
-content := `{"typos":[{"from":"git sattus","to":"git status"}]}`
+content := `{"settings":{"similarity_threshold":0.6,"max_log_lines":10000}}`
 os.WriteFile(path, []byte(content), 0644)
 
 // Inline JSONL for logger tests

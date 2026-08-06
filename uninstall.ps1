@@ -3,14 +3,24 @@
 # Or from any dir: powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\CommandFixer",
-    [string]$ConfigDir  = "$env:USERPROFILE\.typo-fixer",
+    [string]$InstallDir,
+    [string]$ConfigDir,
     [switch]$RemoveConfig
 )
 
 $ErrorActionPreference = 'Stop'
 
-$BinaryName = "commandfixer.exe"
+# The locations, the profile paths and the hook markers live in one place,
+# shared with install.ps1. The manual fallback below depends on the markers
+# being exactly what the binary wrote, so it reads them rather than restating
+# them. A param default cannot read this (defaults are evaluated before the
+# body runs), so the fallback is applied here instead.
+. (Join-Path $PSScriptRoot 'profile-hook.ps1')
+
+if (-not $InstallDir) { $InstallDir = $CommandFixerInstallDir }
+if (-not $ConfigDir)  { $ConfigDir  = $CommandFixerConfigDir }
+
+$BinaryName = $CommandFixerBinaryName
 $BinaryPath = Join-Path $InstallDir $BinaryName
 
 # ---- 1. Remove PowerShell profile hooks (PS5 + PS7) -------------------------
@@ -27,19 +37,19 @@ if (Test-Path $BinaryPath) {
     Write-Host "Binary not found at: $BinaryPath" -ForegroundColor Yellow
     Write-Host "Attempting manual profile cleanup..." -ForegroundColor Cyan
 
-    # Remove hook block from both profiles manually if binary is gone
-    $profiles = @(
-        (Join-Path $HOME "Documents\PowerShell\profile.ps1"),
-        (Join-Path $HOME "Documents\WindowsPowerShell\profile.ps1")
-    )
-    $snippetStart = "# CommandFixer Integration - DO NOT EDIT"
-    $snippetEnd   = "# End CommandFixer Integration"
+    # Remove the hook block from both profiles by hand, because the binary that
+    # would normally do it is gone. The paths and the markers come from
+    # profile-hook.ps1, so this cannot drift away from what was written.
+    $snippetStart = $CommandFixerSnippetStart
+    $snippetEnd   = $CommandFixerSnippetEnd
 
-    foreach ($profile in $profiles) {
-        if (-not (Test-Path $profile)) { continue }
-        $content = Get-Content $profile -Raw
+    # Not $profile: that is an automatic PowerShell variable and shadowing it
+    # inside this scope is a trap for anything added below.
+    foreach ($profilePath in (Get-CommandFixerProfilePaths)) {
+        if (-not (Test-Path $profilePath)) { continue }
+        $content = Get-Content $profilePath -Raw
         if (-not $content.Contains($snippetStart)) {
-            Write-Host "  Not installed in: $profile" -ForegroundColor Gray
+            Write-Host "  Not installed in: $profilePath" -ForegroundColor Gray
             continue
         }
         $startIdx = $content.IndexOf($snippetStart)
@@ -51,8 +61,8 @@ if (Test-Path $BinaryPath) {
         } else {
             $content = $content.Substring(0, $startIdx).TrimEnd("`n") + "`n"
         }
-        Set-Content $profile -Value $content -NoNewline
-        Write-Host "  Removed hook from: $profile" -ForegroundColor Green
+        Set-Content $profilePath -Value $content -NoNewline
+        Write-Host "  Removed hook from: $profilePath" -ForegroundColor Green
     }
 }
 
