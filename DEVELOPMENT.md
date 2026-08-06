@@ -55,7 +55,6 @@ is how you can tell one was built without the version.
 ```powershell
 .\build.ps1 -Lint        # gofmt, go vet and staticcheck
 .\build.ps1 -Coverage    # coverage report, fails below the floor
-.\build.ps1 -Race        # tests with race detector
 .\build.ps1 -Clean       # remove build artefacts
 ```
 
@@ -216,13 +215,12 @@ Get-Content $PROFILE | Select-String "CommandFixer"
 Get-Content "$env:USERPROFILE\.typo-fixer\corrections.log"
 ```
 
-### Race conditions
+### Concurrent state
 
-```powershell
-go test -race ./...
-```
-
-The logger uses `sync.Mutex` so concurrent corrections are safe.
+The logger uses `sync.Mutex` so concurrent corrections are safe. There is no
+race detector to check that: it needs cgo, which this project does without on
+purpose. Protect anything new with the existing mutex or a new one and expect
+review rather than a tool to catch it.
 
 ---
 

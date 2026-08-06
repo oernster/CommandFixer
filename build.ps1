@@ -10,13 +10,22 @@
 #   .\build.ps1 -Test            Run tests, then build
 #   .\build.ps1 -Lint            gofmt, go vet and staticcheck
 #   .\build.ps1 -Coverage        Coverage report, failing below the floor
-#   .\build.ps1 -Race            Run tests with the race detector
 #   .\build.ps1 -Clean           Remove build artefacts
+#
+# There is deliberately no race-detector switch: Go's race detector requires
+# cgo, this tool is deliberately CGO-free and Windows machines here have no C
+# toolchain, so the switch could only ever fail with "-race requires cgo". A
+# command that cannot run is worse than an absent one, because it reads as a
+# check that is being performed.
 
+# CmdletBinding so an unrecognised switch is an error rather than silence.
+# Without it PowerShell drops unknown named arguments into $args, so a stale
+# `-Race` or a mistyped `-Covrage` ran a plain build and reported success: the
+# check you asked for never ran and nothing said so.
+[CmdletBinding()]
 param(
     [switch]$Test,
     [switch]$Coverage,
-    [switch]$Race,
     [switch]$Lint,
     [switch]$Clean
 )
@@ -96,14 +105,6 @@ if ($Lint) {
 }
 
 # ---- Tests ---------------------------------------------------------------
-
-if ($Race) {
-    Write-Host "Running tests with race detector..." -ForegroundColor Cyan
-    go test -race ./...
-    Assert-Succeeded "Tests"
-    Write-Host "  All tests passed." -ForegroundColor Green
-    exit 0
-}
 
 if ($Coverage) {
     Write-Host "Running tests with coverage..." -ForegroundColor Cyan

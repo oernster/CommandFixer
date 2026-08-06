@@ -67,20 +67,17 @@ go test -v -run TestSuggest_GitStatus_Typo ./corrector/
 go test -v -run TestInstall ./shell/
 ```
 
-### Race detector
+### On the race detector
 
-```powershell
-.\build.ps1 -Race
-```
+There is none, deliberately. Go's race detector requires cgo, this project is
+deliberately CGO-free and the Windows machines it is developed on have no C
+toolchain, so `go test -race` can only exit with `-race requires cgo`. A command
+that cannot run is worse than an absent one: it reads as a check being
+performed.
 
-The Logger uses `sync.Mutex`. The race detector verifies no concurrent map or
-slice access escapes the mutex.
-
-**This needs a C toolchain and will not run without one.** Go's race detector
-requires cgo and this project is deliberately CGO-free, so on a machine with no
-gcc the command exits with `-race requires cgo` rather than running. That is an
-environment limitation and not a fault in the suite: everything else, including
-the coverage gate, runs without a C compiler.
+`Logger` still guards its state with a `sync.Mutex` and that is still the rule
+to follow when adding concurrent state. It is held by review rather than by the
+detector.
 
 ---
 
@@ -276,17 +273,20 @@ validJSON := `{"timestamp":"2024-01-01T00:00:00Z","original":"a","corrected":"b"
 
 ## CI Integration
 
-Add this to your CI pipeline (e.g., GitHub Actions):
+There is no CI pipeline in this repository. If one is added, it should call the
+same script a developer calls rather than restating the checks:
 
 ```yaml
-- name: Test
-  run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+- name: Lint
+  run: pwsh ./build.ps1 -Lint
 
-- name: Check coverage
-  run: |
-    go tool cover -func=coverage.out | grep "total:" | awk '{print $3}' | \
-    grep -E '^(100\.0|9[5-9]\.[0-9])%$' || (echo "Coverage too low" && exit 1)
+- name: Test and coverage
+  run: pwsh ./build.ps1 -Coverage
 ```
+
+That matters more than it looks. A pipeline that reimplements the coverage
+threshold puts the floor in a second place, where it drifts from the first and
+then quietly disagrees with it. One definition, called from both.
 
 ---
 
@@ -295,8 +295,8 @@ Add this to your CI pipeline (e.g., GitHub Actions):
 **Test leaves temp files:**
 `t.TempDir()` is cleaned up automatically by the test runner. No manual cleanup needed.
 
-**Race detector flags something:**
-The `Logger` struct uses `sync.Mutex`. If you add new concurrent state, protect it with the existing mutex or a new one.
+**Adding concurrent state:**
+The `Logger` struct uses `sync.Mutex`. Protect anything new with the existing mutex or a new one. There is no race detector here to catch you (see above), so this is held by review.
 
 **Profile install test fails on CI (no home dir):**
 `DefaultProfilePath()` and `DefaultConfigPath()` call `os.UserHomeDir()`. On headless CI, set `$HOME` before running tests:
