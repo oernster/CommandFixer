@@ -15,7 +15,15 @@ import (
 	"github.com/oernster/commandfixer/shell"
 )
 
-const appVersion = "2.0.0"
+// appVersion is injected at build time from the root VERSION file, via
+// -ldflags "-X main.appVersion=...". The fallback marks a binary built without
+// it, so `go build` on its own still works and still says something honest.
+//
+// It must stay a var. The linker can only set a string variable, so while this
+// was a const the documented build flag was a silent no-op: the flag was
+// accepted, the binary kept the literal and the tag and the binary could
+// disagree with nothing reporting it.
+var appVersion = "0.0.0-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
