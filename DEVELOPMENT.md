@@ -39,30 +39,30 @@ go test ./...         # all tests should pass
 .\build.ps1 -Test     # tests then builds
 ```
 
-Or manually:
+Or manually, reading the version from the `VERSION` file as the script does:
 
 ```powershell
 $env:GOOS   = "windows"
 $env:GOARCH = "amd64"
-go build -ldflags="-s -w" -o commandfixer.exe .
+go build "-ldflags=-s -w -X main.appVersion=$(Get-Content VERSION)" -o commandfixer.exe .
 ```
 
-### Cross-compile from Linux/macOS (Makefile)
+A plain `go build` still works and produces a binary reporting `0.0.0-dev`, which
+is how you can tell one was built without the version.
 
-```bash
-make build-windows    # produces commandfixer.exe
-make test             # run tests
-make coverage         # generate coverage.out + print summary
-make coverage-html    # open coverage.html in browser
-```
-
-### Other targets
+### Other switches
 
 ```powershell
-.\build.ps1 -Coverage    # HTML coverage report, opens in browser
+.\build.ps1 -Lint        # gofmt, go vet and staticcheck
+.\build.ps1 -Coverage    # coverage report, fails below the floor
 .\build.ps1 -Race        # tests with race detector
 .\build.ps1 -Clean       # remove build artefacts
 ```
+
+`build.ps1` is the whole workflow. There is deliberately no Makefile: this tool
+corrects PowerShell commands and its users are on Windows, so a second copy of
+the workflow written for a platform its developer does not use was a checklist
+that could not be run and went stale. One runner, runnable where the work is.
 
 ---
 
@@ -72,6 +72,8 @@ make coverage-html    # open coverage.html in browser
 CommandFixer/
 ├── main.go                  Entry point and CLI dispatch
 ├── main_test.go             Integration-style tests for CLI commands
+├── structural_test.go       Import-boundary rules over the package layout
+├── VERSION                  The single source of truth for the version
 ├── go.mod                   Module definition (no external deps)
 ├── config/
 │   ├── loader.go            JSON config load/save, defaults
@@ -87,8 +89,7 @@ CommandFixer/
 │   └── stats_test.go
 ├── config.example.json      Starter typo dictionary
 ├── install.ps1              One-shot installer
-├── build.ps1                Build/test/coverage helper
-└── Makefile                 Cross-platform make targets
+└── build.ps1                Build, test, lint and coverage runner
 ```
 
 ---
@@ -220,9 +221,16 @@ go mod verify
 ## Release Build
 
 ```powershell
-$env:GOOS   = "windows"
-$env:GOARCH = "amd64"
-go build -ldflags="-s -w -X main.appVersion=1.2.0" -o commandfixer.exe .
+.\build.ps1
 ```
 
-The `-s -w` flags strip debug info. `-X main.appVersion=...` injects the version at link time.
+That is the release build. It reads the version from the root `VERSION` file and
+injects it, so there is nothing to remember and nothing to keep in step by hand.
+
+The `-s -w` flags strip debug info. `-X main.appVersion=...` sets the version at
+link time, which only works because `appVersion` is a `var`: the linker cannot
+write to a `const`, so while it was one this flag was accepted and silently did
+nothing, and the binary kept whatever literal was in the source.
+
+Never write a version anywhere but `VERSION`. Nothing else in the repository
+holds a real version string.
