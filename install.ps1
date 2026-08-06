@@ -3,13 +3,21 @@
 # Or from any dir: powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\CommandFixer",
-    [string]$ConfigDir  = "$env:USERPROFILE\.typo-fixer"
+    [string]$InstallDir,
+    [string]$ConfigDir
 )
 
 $ErrorActionPreference = 'Stop'
 
-$BinaryName    = "commandfixer.exe"
+# The locations and the hook markers live in one place, shared with
+# uninstall.ps1. A param default cannot read it (defaults are evaluated before
+# the body runs), so the fallback is applied here instead.
+. (Join-Path $PSScriptRoot 'profile-hook.ps1')
+
+if (-not $InstallDir) { $InstallDir = $CommandFixerInstallDir }
+if (-not $ConfigDir)  { $ConfigDir  = $CommandFixerConfigDir }
+
+$BinaryName    = $CommandFixerBinaryName
 $BinarySource  = Join-Path $PSScriptRoot $BinaryName
 $BinaryDest    = Join-Path $InstallDir $BinaryName
 $ConfigDest    = Join-Path $ConfigDir "config.json"

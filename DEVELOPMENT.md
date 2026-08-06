@@ -1,6 +1,6 @@
 # Development Guide
 
-Local setup, build steps, and debugging for CommandFixer.
+Local setup, build steps and debugging for CommandFixer.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for code structure and design decisions.
 See [TESTING.md](TESTING.md) for the full testing strategy.
@@ -71,24 +71,34 @@ that could not be run and went stale. One runner, runnable where the work is.
 ```
 CommandFixer/
 ├── main.go                  Entry point and CLI dispatch
-├── main_test.go             Integration-style tests for CLI commands
-├── structural_test.go       Import-boundary rules over the package layout
+├── main_test.go             CLI routing and shared test helpers
+├── commands_test.go         suggest, correct, log and stats
+├── install_test.go          The commands that write to a PowerShell profile
+├── structural_test.go       Import-boundary and file-size rules
 ├── VERSION                  The single source of truth for the version
 ├── go.mod                   Module definition (no external deps)
 ├── config/
 │   ├── loader.go            JSON config load/save, defaults
 │   └── loader_test.go
 ├── corrector/
-│   ├── engine.go            Rule compilation and command correction
-│   └── engine_test.go
+│   ├── engine.go            Correction policy: what to correct and when
+│   ├── database.go          Known tools, subcommands and Windows commands
+│   ├── distance.go          Damerau-Levenshtein distance and similarity
+│   ├── engine_test.go
+│   ├── windows_test.go
+│   └── distance_test.go
 ├── shell/
 │   ├── powershell.go        Profile snippet generation and install/uninstall
-│   └── powershell_test.go
+│   ├── powershell_test.go   The snippet, the paths, the read-only operations
+│   ├── install_test.go      The operations that change a profile
+│   └── markers_test.go      Go and PowerShell markers still agree
 ├── logger/
 │   ├── stats.go             JSONL log writer and stats aggregator
 │   └── stats_test.go
-├── config.example.json      Starter typo dictionary
+├── config.example.json      Starter settings file
+├── profile-hook.ps1         Hook markers and profile paths, defined once
 ├── install.ps1              One-shot installer
+├── uninstall.ps1            Uninstaller, with a binary-independent fallback
 └── build.ps1                Build, test, lint and coverage runner
 ```
 
@@ -131,22 +141,32 @@ Type `git sattus` and press Enter. You should see the correction message.
 
 ---
 
-## Adding a New Typo Rule
+## Adding a Command to the Database
 
-1. Open `%USERPROFILE%\.typo-fixer\config.json` (or `config.example.json` for the repo starter set).
-2. Add an entry to `"typos"`:
+There is no user-facing typo dictionary. Corrections come from the built-in
+database, so teaching CommandFixer about a new tool is a source change in
+`corrector/database.go` and nothing else:
 
-```json
-{ "from": "git comit", "to": "git commit" }
-```
+1. **A CLI tool with subcommands**: add a key to `commandDB` with its valid
+   subcommands. Keep the list sorted and complete: a real subcommand missing
+   from it will be "corrected" to a neighbour, which is worse than no
+   correction at all.
+2. **A Windows standalone command**: add it to `windowsCommands`.
+3. **A shell alias that must never be corrected**: add it to `windowsCommands`
+   too. Exact matches are left alone, which is why `ls` survives despite being
+   one insertion from `cls`.
+4. **A habitual transposition**: add it to `commandAliases`, which applies
+   unconditionally and ignores the threshold.
 
-For regex patterns set `"regex": true`:
+Add a case to `corrector/windows_test.go` or `engine_test.go` alongside it.
+Nothing needs rebuilding beyond the binary and no restart is required, because
+the hook shells out on every prompt.
 
-```json
-{ "from": "gti\\s+", "to": "git ", "regex": true }
-```
+### Tuning sensitivity
 
-3. No restart needed. Each invocation of `commandfixer correct` re-reads the config.
+`similarity_threshold` in `config.json` sets how close a match must be, in the
+range (0.0, 1.0], defaulting to 0.6. Lower catches more typos and risks
+correcting things you meant.
 
 ---
 
@@ -154,7 +174,8 @@ For regex patterns set `"regex": true`:
 
 1. Add a new `case` in `dispatch()` in `main.go`.
 2. Implement `cmdFoo(args []string, cfgPath string) error`.
-3. Add tests in `main_test.go` following the existing pattern.
+3. Add tests in `commands_test.go` following the existing pattern or in
+   `install_test.go` if the command writes to a PowerShell profile.
 4. Update `printUsage()`.
 
 ---
@@ -230,7 +251,7 @@ injects it, so there is nothing to remember and nothing to keep in step by hand.
 The `-s -w` flags strip debug info. `-X main.appVersion=...` sets the version at
 link time, which only works because `appVersion` is a `var`: the linker cannot
 write to a `const`, so while it was one this flag was accepted and silently did
-nothing, and the binary kept whatever literal was in the source.
+nothing and the binary kept whatever literal was in the source.
 
 Never write a version anywhere but `VERSION`. Nothing else in the repository
 holds a real version string.

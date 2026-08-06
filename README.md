@@ -2,7 +2,7 @@
 
 A lightweight Go binary that auto-corrects your common typing mistakes in PowerShell before commands execute.
 
-Type `git sattus`, press Enter, and CommandFixer silently swaps it for `git status` - then runs it, if you approve.
+Type `git sattus`, press Enter and CommandFixer silently swaps it for `git status` - then runs it, if you approve.
 
 Works in both **PowerShell 7** (`pwsh`) and **Windows PowerShell 5** (`powershell.exe`).
 
@@ -67,7 +67,7 @@ Then **restart PowerShell** to complete removal.
 
 ### Reinstall / Upgrade
 
-To upgrade to a new build (or reinstall after code changes), rebuild and re-run the installer. `install.ps1` is idempotent: it overwrites the existing binary with `-Force`, leaves your `PATH` entry and your config/log untouched, and refreshes the PowerShell profile hook for both PS7 and PS5.
+To upgrade to a new build (or reinstall after code changes), rebuild and re-run the installer. `install.ps1` is idempotent: it overwrites the existing binary with `-Force`, leaves your `PATH` entry and your config/log untouched and refreshes the PowerShell profile hook for both PS7 and PS5.
 
 ```powershell
 .\build.ps1 -Test        # rebuild commandfixer.exe (runs tests first)
@@ -88,23 +88,25 @@ For a clean reinstall that also resets your config and log, uninstall with `-Rem
 
 ### 4. Configure
 
-Edit `%USERPROFILE%\.typo-fixer\config.json`:
+There is nothing you have to configure. Corrections come from a database built
+into the binary, so it is useful the moment it is installed.
+
+If you want to tune it, edit `%USERPROFILE%\.typo-fixer\config.json`:
 
 ```json
 {
-  "typos": [
-    { "from": "git sattus",  "to": "git status" },
-    { "from": "git statsu",  "to": "git status" },
-    { "from": "docker pss",  "to": "docker ps"  }
-  ],
   "settings": {
-    "show_corrections": true,
-    "max_log_lines": 10000
+    "log_file": "",
+    "max_log_lines": 10000,
+    "similarity_threshold": 0.6
   }
 }
 ```
 
-See `config.example.json` in this repo for a larger starter set.
+`similarity_threshold` is how close a typo must be to a known command before it
+is offered, in the range (0.0, 1.0]. Lower catches more typos and starts
+offering corrections you did not want. `log_file` empty means the default
+location below.
 
 ### 5. Use It
 
@@ -124,9 +126,11 @@ CommandFixer hooks into **PSReadLine** (built into both PowerShell 7 and Windows
 
 1. PSReadLine captures the current buffer.
 2. It calls `commandfixer suggest <your-command>`.
-3. CommandFixer loads `config.json`, applies all rules, and prints the corrected form.
-4. If the command changed, PowerShell prompts you to confirm.
-5. The corrected command executes.
+3. CommandFixer fuzzy-matches it against a built-in database of CLI tools, their
+   subcommands and the standard Windows commands and prints a suggestion when
+   one is close enough. Nothing is printed when it has nothing to offer.
+4. If there is a suggestion, PowerShell shows it and waits for you to confirm.
+5. The corrected command executes only if you accept it.
 
 No system-wide keyboard hooks. No persistent service required. The binary runs in milliseconds.
 
@@ -137,6 +141,7 @@ No system-wide keyboard hooks. No persistent service required. The binary runs i
 ```
 commandfixer suggest <cmd>       Fuzzy-match and print correction (used by hook)
 commandfixer correct <cmd>       Like suggest but also logs the correction
+commandfixer log <from> <to>     Record a correction you accepted (used by hook)
 commandfixer install [profile]   Add PSReadLine hook to your profile(s)
 commandfixer uninstall [profile] Remove the hook from your profile(s)
 commandfixer stats               Show correction count and rule breakdown
@@ -159,7 +164,7 @@ commandfixer correct "git sattus"
 
 | Path | Purpose |
 |------|---------|
-| `%USERPROFILE%\.typo-fixer\config.json` | Typo rules and settings |
+| `%USERPROFILE%\.typo-fixer\config.json` | Settings: log location and match sensitivity |
 | `%USERPROFILE%\.typo-fixer\corrections.log` | JSONL corrections log |
 | `%LOCALAPPDATA%\CommandFixer\commandfixer.exe` | Installed binary |
 | `Documents\PowerShell\profile.ps1` | PS7 profile (hook appended here) |

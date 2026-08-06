@@ -10,9 +10,13 @@
 
 # Coverage profiles and HTML reports
 *.out
+coverage
 coverage.*
 *.coverprofile
 profile.cov
+
+# Working release notes, drafted per release and never committed
+NOTES.md
 
 # Go workspace files (local developer convenience, not project config)
 go.work
