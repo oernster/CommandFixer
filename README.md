@@ -6,6 +6,19 @@ Type `git sattus`, press Enter and CommandFixer silently swaps it for `git statu
 
 Works in both **PowerShell 7** (`pwsh`) and **Windows PowerShell 5** (`powershell.exe`).
 
+## Who it is for and who it is not for
+
+It is for someone who lives in PowerShell on Windows and mistypes the same handful of
+commands often enough to want them corrected in place. Suggestions arrive through a
+PSReadLine hook and nothing is rewritten behind your back: you confirm before the
+corrected command runs.
+
+It is not a shell, not a replacement for tab completion and not a command generator. It
+matches against a database of common CLI tools using a similarity threshold, so it
+corrects spelling rather than intent: it will turn a misspelt command into the one you
+meant to type, never a wrong command into the right one. It works by hooking PowerShell
+profiles on Windows and has no meaning outside that environment.
+
 ---
 
 ## Quick Start
