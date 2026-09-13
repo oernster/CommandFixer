@@ -191,3 +191,11 @@ commandfixer correct "git sattus"
 - [ARCHITECTURE.md](ARCHITECTURE.md) - system design, module breakdown, data flow
 - [TESTING.md](TESTING.md) - testing strategy, coverage requirements, how to run tests
 - [TECH_DEBT.md](TECH_DEBT.md) - what is still open, what is deliberately left and what only looks like debt
+
+---
+
+## Supporting the project
+
+CommandFixer is free and stays free. There is no paid tier, no licence key and no feature held back behind a donation. If it has saved you time or simply been useful, a donation supports its maintenance and continued development.
+
+<a href="https://www.paypal.com/ncp/payment/7B63G27P2966Y"><img src="docs/donate.png" alt="Donate to CommandFixer" width="120"></a>
