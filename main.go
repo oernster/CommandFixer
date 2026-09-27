@@ -1,12 +1,13 @@
 // Command commandfixer is a PowerShell typo auto-corrector.
 // It intercepts shell commands, fuzzy-matches subcommands against a built-in
-// database of popular CLI tools, and prompts for confirmation before correcting.
+// database of popular CLI tools, then prompts for confirmation before correcting.
 package main
 
 import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/oernster/commandfixer/config"
@@ -87,12 +88,27 @@ func cmdSuggest(args []string, cfgPath string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	eng := corrector.New(cfg.Settings.SimilarityThreshold)
-	suggestion, found := eng.Suggest(input)
+	suggestion, found := newEngine(cfg).Suggest(input)
 	if found {
 		fmt.Println(suggestion)
 	}
 	return nil
+}
+
+// newEngine builds the correction engine both suggest and correct use, so the
+// two can never disagree about what counts as a typo.
+func newEngine(cfg *config.Config) *corrector.Engine {
+	return corrector.New(cfg.Settings.SimilarityThreshold).WithCommandLookup(onPath)
+}
+
+// onPath reports whether name resolves as an executable on PATH. On Windows
+// exec.LookPath applies PATHEXT, so a .cmd or .bat shim (VS Code's code.cmd)
+// counts, as it does for the shell. A match found only in the current
+// directory comes back as exec.ErrDot and does not count: PowerShell will not
+// run it without a .\ prefix either.
+func onPath(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
 }
 
 // cmdCorrect is the human-facing diagnostic command.
@@ -109,8 +125,7 @@ func cmdCorrect(args []string, cfgPath string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	eng := corrector.New(cfg.Settings.SimilarityThreshold)
-	suggestion, found := eng.Suggest(input)
+	suggestion, found := newEngine(cfg).Suggest(input)
 	if found {
 		fmt.Println(suggestion)
 		log := logger.New(cfg.Settings.LogFile)

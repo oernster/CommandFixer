@@ -21,8 +21,8 @@ teaches everyone that the gate is advisory. The current position:
 | `config` | 92.1% |
 | `logger` | 91.4% |
 | `shell` | 87.7% |
-| `main` | 65.3% |
-| **total** | **83.5%** |
+| `main` | 65.5% |
+| **total** | **83.9%** |
 
 `corrector` is at 100% because it is pure computation over strings with nothing
 to arrange. `main` is lowest because `cmdInstall` and `cmdUninstall` write to a
@@ -96,7 +96,7 @@ The last line is the one the gate reads:
 github.com/oernster/commandfixer/corrector/engine.go:Suggest           100.0%
 github.com/oernster/commandfixer/main.go:cmdInstall                     36.0%
 ...
-total:                                                                  83.5%
+total:                                                                  83.9%
 ```
 
 Note the quoting. Unquoted, PowerShell splits `-coverprofile=coverage.out` at
@@ -127,6 +127,7 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | `config/loader_test.go` | `config` package |
 | `corrector/engine_test.go` | Correction policy: what Suggest decides to do |
 | `corrector/windows_test.go` | Correction over the Windows entries, both subcommand tools and standalone commands |
+| `corrector/lookup_test.go` | That a first token the command lookup knows is never renamed |
 | `corrector/distance_test.go` | The string metric alone |
 | `shell/powershell_test.go` | The hook snippet, the profile paths and the read-only operations |
 | `shell/install_test.go` | The operations that change a user's profile |
@@ -135,6 +136,7 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | `main_test.go` | CLI routing and the shared helpers |
 | `commands_test.go` | The suggest, correct, log and stats commands |
 | `install_test.go` | The two commands that write to a PowerShell profile |
+| `path_windows_test.go` | The PATH lookup against a real directory holding a `code.cmd` shim (Windows only) |
 | `structural_test.go` | Import boundaries and file size, over the repository itself |
 
 The split is by concern rather than by file size, though size is what forced it:
@@ -181,6 +183,7 @@ forbids this package from importing anything that reaches outside the process.
 | Windows subcommand tools | winget, choco, scoop, net, sc, reg, netsh |
 | Windows standalone commands | dir, mkdir, copy, ipconfig, tasklist, arguments preserved, below threshold left alone |
 | PowerShell aliases | `ls` never becomes `cls`; the alias set is never corrected |
+| Command lookup | A known command is not renamed (`code` stays, never `mode`); without the lookup it is; a known tool's subcommand is still corrected; an unknown typo still is; `WithCommandLookup` copies, keeps the threshold and ignores nil |
 | `similarity` | Equal strings, empty strings, wholly different, either side of the default threshold |
 | `damerauLevenshtein` | Both empty, one empty, equal, single deletion, known distance, adjacent transposition |
 
@@ -234,6 +237,7 @@ forbids this package from importing anything that reaches outside the process.
 | `cmdInstall` | Explicit profile path (success), already installed (error forwarded) |
 | `cmdUninstall` | Explicit profile path (success), not installed (error forwarded) |
 | `cmdStats` | Empty log (zero output), with entries (non-zero output), bad config (error) |
+| `newEngine` / `onPath` | `code.cmd` on PATH (not corrected), not on PATH (corrected), only in the current directory (does not count) |
 | `printUsage` | Smoke test (does not panic) |
 
 **`main()` excluded:** calls `os.Exit(1)` which terminates the test process. The pattern `func main() { if err := run(...); err != nil { os.Exit(1) } }` is idiomatic Go and universally excluded from test coverage.
@@ -306,4 +310,7 @@ HOME=/tmp go test ./...
 ```
 
 **Test isolation:**
-All tests call `t.Parallel()`. They do not share any global state. Each test gets its own `t.TempDir()`.
+Every test calls `t.Parallel()` and gets its own `t.TempDir()`, with one set of exceptions: the tests in `path_windows_test.go` set PATH, PATHEXT and the working directory for the whole process, so they run alone and put everything back when they finish.
+
+**The current-directory test passing for the wrong reason:**
+`exec.LookPath` only searches the current directory while `NoDefaultCurrentDirectoryInExePath` is absent from the environment. Some machines set it; with it set the test would pass whatever `onPath` did. The test removes the variable for its own duration for that reason; do not take that line out.

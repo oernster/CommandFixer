@@ -94,6 +94,8 @@ Entry point and CLI dispatcher.
 
 **Key design decision:** `dispatch(args, cfgPath)` is separate from `main()` so tests can inject a temporary config path without touching the real filesystem.
 
+**Key design decision:** the PATH lookup lives here rather than in `corrector`, which must not read the environment. `exec.LookPath` applies PATHEXT on Windows, so a `.cmd` or `.bat` shim such as VS Code's `code.cmd` counts as a command, just as it does for the shell. A match found only in the current directory (`exec.ErrDot`) does not count, since PowerShell will not run it without `.\` either.
+
 **Exported API:** none (package main)
 
 **Internal functions:**
@@ -104,6 +106,8 @@ Entry point and CLI dispatcher.
 | `dispatch(args, cfgPath)` | Routes commands; injectable for tests |
 | `cmdSuggest(args, cfgPath)` | The machine-facing command the prompt hook calls; prints a suggestion or nothing |
 | `cmdCorrect(args, cfgPath)` | Load config, correct, log |
+| `newEngine(cfg)` | Builds the engine `suggest` and `correct` share, with `onPath` as its command lookup |
+| `onPath(name)` | Whether `name` resolves on PATH, through `exec.LookPath` |
 | `cmdLog(args, cfgPath)` | Record an accepted correction |
 | `cmdInstall(args)` | Write PS profile hook |
 | `cmdUninstall(args)` | Remove PS profile hook |
@@ -166,8 +170,11 @@ matching logic and changing the metric never touches either:
 **Data structures:**
 
 ```go
+type CommandLookup func(name string) bool
+
 type Engine struct {
-    threshold float64 // minimum similarity for a correction to apply
+    threshold float64       // minimum similarity for a correction to apply
+    isCommand CommandLookup // whether a first token is a real command
 }
 ```
 
@@ -176,6 +183,7 @@ type Engine struct {
 - **No user dictionary is required.** Correction comes from the built-in database rather than from rules a user has to write, which is what makes the tool useful on first run.
 - **Correction is tried in a fixed order**: an unconditional alias (`gti` to `git`), then subcommand correction when the first token is a known tool, then tool-name correction against both the known tools and the Windows standalone commands, with the closer of the two winning and ties going to the CLI tool.
 - **An exact match is never "corrected".** A token that already appears in the database is left alone, which is why the PowerShell POSIX-style aliases are listed explicitly: `ls` is one insertion from `cls` and would otherwise be rewritten to it.
+- **A real command is never renamed either.** Before tool-name correction the engine asks its `CommandLookup` whether the first token runs as a command; if it does, the line is left alone. Without it `code` became `mode`, `node` became `mode` and `tar` became `start`, because the database cannot list every program a machine has. The lookup guards the tool name only: `git sattus` is still corrected, though `git` is plainly on PATH. An engine from `New` knows no commands beyond the database; `main` supplies the real lookup through `WithCommandLookup`.
 - **Damerau-Levenshtein rather than plain Levenshtein**, so a transposition counts as one edit. Typing mistakes are mostly transpositions (`psuh`, `gti`); plain Levenshtein scores those as two.
 - **The engine is pure computation over strings**: no filesystem, no environment, no clock. That is why its tests are a plain table with no fixture; `structural_test.go` enforces it rather than trusting it.
 
@@ -184,6 +192,7 @@ type Engine struct {
 | Function | Description |
 |----------|-------------|
 | `New(threshold)` | Build an engine; a zero or out-of-range threshold applies the default (0.6) |
+| `engine.WithCommandLookup(lookup)` | A copy that asks `lookup` whether a first token is a real command; nil keeps the current one |
 | `engine.Threshold()` | The similarity threshold in use |
 | `engine.Suggest(cmd)` | The corrected command and whether anything changed |
 
@@ -264,6 +273,7 @@ None. CommandFixer uses only the Go standard library:
 | `encoding/json` | Config file and log serialisation |
 | `fmt` | Error formatting and output |
 | `os` | File I/O, executable path, home directory |
+| `os/exec` | `LookPath`, to tell a real command from a typo |
 | `path/filepath` | Cross-platform path construction |
 | `strings` | Tokenising a command and rejoining it |
 | `sort` | Deterministic ordering of the known tool names |

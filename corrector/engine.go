@@ -10,8 +10,8 @@
 // and corrects the command name itself when a close-enough match is found.
 //
 // The package is three files along one seam each: database.go is the data the
-// engine matches against, distance.go is the string metric, and this file is
-// the correction policy that decides what to do with them.
+// engine matches against, distance.go is the string metric; this file is the
+// correction policy that decides what to do with them.
 package corrector
 
 import "strings"
@@ -19,9 +19,19 @@ import "strings"
 // defaultThreshold is used when New receives a zero or out-of-range threshold.
 const defaultThreshold = 0.6
 
+// CommandLookup reports whether a name runs as a command on this machine. The
+// engine asks it and never answers it: finding a command means reading PATH and
+// the filesystem, which this package does not do.
+type CommandLookup func(name string) bool
+
+// noCommandLookup is the lookup an engine starts with: it knows of no command
+// beyond the compiled-in database.
+func noCommandLookup(string) bool { return false }
+
 // Engine performs fuzzy subcommand correction for known CLI tools.
 type Engine struct {
 	threshold float64
+	isCommand CommandLookup
 }
 
 // New creates an Engine with the given similarity threshold (0.0, 1.0].
@@ -30,7 +40,18 @@ func New(threshold float64) *Engine {
 	if threshold <= 0 || threshold > 1 {
 		threshold = defaultThreshold
 	}
-	return &Engine{threshold: threshold}
+	return &Engine{threshold: threshold, isCommand: noCommandLookup}
+}
+
+// WithCommandLookup returns a copy of the engine that asks lookup whether a
+// first token is a real command before correcting its name. A nil lookup keeps
+// the one already in use.
+func (e *Engine) WithCommandLookup(lookup CommandLookup) *Engine {
+	copied := *e
+	if lookup != nil {
+		copied.isCommand = lookup
+	}
+	return &copied
 }
 
 // Threshold returns the similarity threshold in use.
@@ -51,12 +72,13 @@ func (e *Engine) Threshold() float64 {
 //  2. Subcommand correction: when the first token is an exact commandDB key,
 //     the second token is fuzzy-matched against the tool's known subcommands.
 //
-//  3. Tool-name correction: when the first token matches neither of the above,
-//     it is fuzzy-matched against the known CLI tools and the Windows standalone
+//  3. Tool-name correction: when the first token matches neither of the above
+//     and the command lookup does not know it as a real command, it is
+//     fuzzy-matched against the known CLI tools and the Windows standalone
 //     commands; the closer of the two wins. A corrected CLI tool also has its
 //     subcommand corrected.
 //
-// In every mode at least two tokens must be present, and a fuzzy match must
+// In every mode at least two tokens must be present; a fuzzy match must
 // meet or exceed the configured threshold. Tokens beyond the corrected ones are
 // preserved verbatim.
 func (e *Engine) Suggest(cmd string) (string, bool) {
@@ -103,7 +125,7 @@ func (e *Engine) correctSubcommand(tokens []string) (string, bool) {
 
 // suggestToolName attempts to correct a mistyped first token. It fuzzy-matches
 // the token against both the known CLI tools (commandDB keys) and the Windows
-// standalone commands, and applies the closer match. A corrected CLI tool also
+// standalone commands, then applies the closer match. A corrected CLI tool also
 // has its subcommand corrected; a corrected standalone command keeps all of its
 // remaining arguments verbatim.
 func (e *Engine) suggestToolName(cmd string, tokens []string) (string, bool) {
@@ -114,6 +136,12 @@ func (e *Engine) suggestToolName(cmd string, tokens []string) (string, bool) {
 		if sc == tool {
 			return cmd, false
 		}
+	}
+
+	// A real command the database has never heard of is still a real command:
+	// "code" is one edit from "mode" and must not be rewritten to it.
+	if e.isCommand(tool) {
+		return cmd, false
 	}
 
 	toolMatch, toolSim := bestMatch(tool, commandDBTools)
