@@ -80,14 +80,21 @@ Then **restart PowerShell** to complete removal.
 
 ### Reinstall / Upgrade
 
-To upgrade to a new build (or reinstall after code changes), rebuild and re-run the installer. `install.ps1` is idempotent: it overwrites the existing binary with `-Force`, leaves your `PATH` entry and your config/log untouched and refreshes the PowerShell profile hook for both PS7 and PS5.
+To upgrade to a new build (or reinstall after code changes), rebuild and re-run the installer. `install.ps1` is idempotent: it overwrites the existing binary with `-Force` and leaves your `PATH` entry and your config/log untouched. It adds the PowerShell profile hook to any profile that lacks it; a profile that already has the hook is left exactly as it is.
 
 ```powershell
 .\build.ps1 -Test        # rebuild commandfixer.exe (runs tests first)
-.\install.ps1            # overwrite the installed binary and refresh the hook
+.\install.ps1            # overwrite the installed binary
 ```
 
-Then **restart PowerShell** so the new binary is picked up.
+No restart is needed. The hook runs the installed binary by its full path on every Enter, so open shells use the new build straight away.
+
+If a release changes the hook itself, re-running the installer does not update it. Remove the old hook first, then install and restart PowerShell, since a profile registers the hook once at startup:
+
+```powershell
+& "$env:LOCALAPPDATA\CommandFixer\commandfixer.exe" uninstall
+.\install.ps1
+```
 
 For a clean reinstall that also resets your config and log, uninstall with `-RemoveConfig` first, then install:
 

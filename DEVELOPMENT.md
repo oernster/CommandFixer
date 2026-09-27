@@ -221,7 +221,8 @@ If it prints `git sattus` unchanged, check:
 # Check the profile exists and contains the hook:
 Get-Content $PROFILE | Select-String "CommandFixer"
 
-# Re-install:
+# Re-install. install alone leaves an existing hook untouched, so remove it first:
+.\commandfixer.exe uninstall
 .\commandfixer.exe install
 
 # Reload profile in current session:
