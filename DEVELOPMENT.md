@@ -154,8 +154,8 @@ database, so teaching CommandFixer about a new tool is a source change in
 3. **A shell alias that must never be corrected**: add it to `windowsCommands`
    too. Exact matches are left alone, which is why `ls` survives despite being
    one insertion from `cls`.
-4. **A habitual transposition**: add it to `commandAliases`, which applies
-   unconditionally and ignores the threshold.
+4. **A habitual transposition**: add it to `commandAliases`, which ignores the
+   threshold. It still yields to a real command of the same name on PATH.
 
 Add a case to `corrector/windows_test.go` or `engine_test.go` alongside it.
 Nothing needs rebuilding beyond the binary and no restart is required, because

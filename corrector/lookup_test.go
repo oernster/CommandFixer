@@ -63,6 +63,29 @@ func TestSuggest_UnknownToLookup_StillCorrected(t *testing.T) {
 	}
 }
 
+// An alias is a habitual typo only while nothing of that name is installed. A
+// real gti on PATH is a command in its own right and is left alone, subcommand
+// and all.
+func TestSuggest_AliasOnPath_NotRewritten(t *testing.T) {
+	t.Parallel()
+	e := New(0).WithCommandLookup(lookupOf("gti"))
+	for _, input := range []string{"gti status", "gti sattus"} {
+		if result, found := e.Suggest(input); found || result != input {
+			t.Errorf("%q: a gti on PATH was rewritten to %q (found=%v)", input, result, found)
+		}
+	}
+}
+
+// With no gti installed the alias still applies, even under a lookup that
+// knows the tool it points at.
+func TestSuggest_AliasNotOnPath_StillRewritten(t *testing.T) {
+	t.Parallel()
+	e := New(0).WithCommandLookup(lookupOf("git"))
+	if result, found := e.Suggest("gti sattus"); !found || result != "git status" {
+		t.Errorf("expected %q, got %q (found=%v)", "git status", result, found)
+	}
+}
+
 func TestWithCommandLookup_LeavesOriginalUntouched(t *testing.T) {
 	t.Parallel()
 	original := New(0)

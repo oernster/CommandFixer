@@ -66,8 +66,9 @@ func (e *Engine) Threshold() float64 {
 // Correction is applied in this order:
 //
 //  1. Command-name alias: when the first token is a known habitual typo
-//     (commandAliases, for example "gti"), it is replaced unconditionally and
-//     the subcommand is then corrected against the intended tool.
+//     (commandAliases, for example "gti") and the command lookup does not know
+//     it as a real command, it is replaced regardless of the threshold. The
+//     subcommand is then corrected against the intended tool.
 //
 //  2. Subcommand correction: when the first token is an exact commandDB key,
 //     the second token is fuzzy-matched against the tool's known subcommands.
@@ -87,7 +88,9 @@ func (e *Engine) Suggest(cmd string) (string, bool) {
 		return cmd, false
 	}
 
-	if canonical, aliased := commandAliases[tokens[0]]; aliased {
+	// An alias is only a typo while nothing of that name is installed; a real
+	// one falls through to tool-name correction, which leaves it alone.
+	if canonical, aliased := commandAliases[tokens[0]]; aliased && !e.isCommand(tokens[0]) {
 		tokens[0] = canonical
 		corrected, _ := e.correctSubcommand(tokens)
 		return corrected, true

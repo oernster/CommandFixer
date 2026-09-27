@@ -179,7 +179,7 @@ forbids this package from importing anything that reaches outside the process.
 | `Suggest` | Empty input, single token, unknown tool, exact subcommand (no correction), too dissimilar, below a custom threshold |
 | Subcommand correction | Typos across git, docker, kubectl and the trailing arguments preserved |
 | Tool-name correction | Mistyped tool alone, mistyped tool plus mistyped subcommand |
-| Command aliases | `gti` to `git`, unconditionally, with the subcommand then corrected |
+| Command aliases | `gti` to `git` regardless of the threshold, with the subcommand then corrected; a `gti` the lookup knows is left alone |
 | Windows subcommand tools | winget, choco, scoop, net, sc, reg, netsh |
 | Windows standalone commands | dir, mkdir, copy, ipconfig, tasklist, arguments preserved, below threshold left alone |
 | PowerShell aliases | `ls` never becomes `cls`; the alias set is never corrected |

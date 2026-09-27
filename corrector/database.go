@@ -209,9 +209,10 @@ var windowsCommands = []string{
 }
 
 // commandAliases maps habitual command-name typos to their intended command.
-// These are corrected unconditionally (independent of the similarity threshold)
-// because they are transpositions a user makes every time, for example "gti"
-// for "git". Add further always-wrong spellings here.
+// These are corrected independent of the similarity threshold because they are
+// transpositions a user makes every time, for example "gti" for "git". The one
+// exception is a name that resolves as a real command, which is left alone.
+// Add further always-wrong spellings here.
 var commandAliases = map[string]string{
 	"gti": "git",
 }
