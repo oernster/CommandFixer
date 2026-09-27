@@ -132,6 +132,7 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | `shell/powershell_test.go` | The hook snippet, the profile paths and the read-only operations |
 | `shell/install_test.go` | The operations that change a user's profile |
 | `shell/markers_test.go` | That the Go markers and paths still match `profile-hook.ps1` |
+| `shell/architecture_test.go` | That the snippet shown in `ARCHITECTURE.md` is exactly what `ProfileSnippet` generates |
 | `logger/stats_test.go` | `logger` package |
 | `main_test.go` | CLI routing and the shared helpers |
 | `commands_test.go` | The suggest, correct, log and stats commands |
@@ -197,7 +198,7 @@ forbids this package from importing anything that reaches outside the process.
 
 | Function | Branch |
 |----------|--------|
-| `ProfileSnippet` | Returns string with both markers and binary path |
+| `ProfileSnippet` | Returns string with both markers and binary path; matches the block shown in `ARCHITECTURE.md` |
 | `Install` | Fresh profile (created from scratch), existing profile appended, existing profile without trailing newline, already installed (`ErrAlreadyInstalled`), parent dirs created |
 | `Uninstall` | Snippet removed, existing content preserved, not installed (`ErrNotInstalled`), file not found (error) |
 | `IsInstalled` | True (after install), false (no snippet), false (file missing - nil error) |

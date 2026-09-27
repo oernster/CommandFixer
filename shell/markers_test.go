@@ -5,14 +5,14 @@ package shell
 //
 // The binary writes the hook block into a user's profile and normally removes
 // it again. But an uninstall has to work when the binary is already gone, so
-// uninstall.ps1 carries a fallback that strips the block itself, and that
+// uninstall.ps1 carries a fallback that strips the block itself; that
 // fallback needs the same markers and the same paths. Two languages cannot
 // share one literal.
 //
-// So the scripts define theirs once, in profile-hook.ps1, and this reads that
+// So the scripts define theirs once, in profile-hook.ps1; this reads that
 // file and fails if the Go side has drifted from it. Without this, changing a
 // marker on one side only leaves a hook line in someone's profile that nothing
-// can find to remove, running on every prompt they type, and nothing reports
+// can find to remove, running on every prompt they type; nothing reports
 // it: the failure lands on a user's machine, not on a developer's.
 
 import (
@@ -41,13 +41,20 @@ func assignment(t *testing.T, script, name string) string {
 
 func readSharedDefinitions(t *testing.T) string {
 	t.Helper()
+	return readRepoFile(t, sharedDefinitions)
+}
+
+// readRepoFile reads a file from the repository root. Line endings come back
+// as LF whatever the checkout holds, so a comparison is about content only.
+func readRepoFile(t *testing.T, name string) string {
+	t.Helper()
 	// Tests run with the package directory as the working directory.
-	path := filepath.Join("..", sharedDefinitions)
+	path := filepath.Join("..", name)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading %s: %v", path, err)
 	}
-	return string(content)
+	return strings.ReplaceAll(string(content), "\r\n", "\n")
 }
 
 func TestSnippetMarkersMatchTheScripts(t *testing.T) {

@@ -62,20 +62,21 @@ User types command + Enter
     /          \
   yes           no
    |             |
+   v             |
+ Shows "did you  |
+  mean: X [Y/n]" |
+ and reads a key |
+   |             |
+   | Y, y or Enter: replaces the buffer, then calls
+   | commandfixer.exe log "<from>" "<to>"  -->  corrections.log
+   | any other key: keeps the line as typed
+   |             |
    v             v
- Shows         Accepts the
- "did you      original command
-  mean: X"     directly
-   |
-   v
- Waits for Y or n
-   |
-   v (only on Y)
- Replaces the buffer, then calls
- commandfixer.exe log "<from>" "<to>"  -->  corrections.log
-   |
-   v
- Executes the corrected command
+ Completeness guard: strips a trailing backtick;
+ incomplete input beeps and stays on the line
+         |
+         v (complete)
+ AcceptLine: runs the line, corrected or not
 ```
 
 ---
@@ -207,6 +208,7 @@ Generates and manages the PowerShell profile hook.
 - The hook uses `Set-PSReadLineKeyHandler -Key Enter`. This is the standard PSReadLine API for intercepting keystrokes. It requires PowerShell 7 with PSReadLine 2.x (shipped by default).
 - The snippet is delimited by exact start/end marker strings. This makes install idempotent (detects existing hook) and makes uninstall reliable (removes the exact block).
 - Those markers exist in two languages and have to. The binary writes and removes the block but `uninstall.ps1` must still work when the binary is already gone, so it carries a fallback that strips the block itself. The scripts define their copy once in `profile-hook.ps1`; `shell/markers_test.go` reads that file and fails if the Go constants drift from it. A marker changed on one side only would leave a hook line nothing can find to remove, running on every prompt a user types.
+- The hook snippet appears a second time, in PowerShell Hook Mechanics below, so a reader can see it without installing anything. `shell/architecture_test.go` fails when that copy differs from what `ProfileSnippet` generates; its message carries the block to paste in.
 - `readProfileSafe` treats `os.IsNotExist` as an empty profile. Users who have never set up a PS profile are handled without error.
 - `removeSnippet` handles edge cases: snippet at start (no content before it), snippet at end, missing end marker (truncates from start marker).
 
@@ -300,19 +302,46 @@ The binary resolves this via `os.UserHomeDir()` at runtime, so the exact path va
 
 ## PowerShell Hook Mechanics
 
-The installed snippet:
+The installed snippet, as `ProfileSnippet` in
+[shell/powershell.go](shell/powershell.go) generates it, with a placeholder
+where a real install has the full path to `commandfixer.exe`:
 
 ```powershell
 # CommandFixer Integration - DO NOT EDIT
 Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
+    $cfBin = 'C:\path\to\commandfixer.exe'
     $line = $null; $cursor = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
-    if ($line.Trim() -ne '') {
-        $corrected = & 'C:\path\to\commandfixer.exe' correct $line 2>$null
-        if ($LASTEXITCODE -eq 0 -and $corrected -and $corrected -ne $line) {
-            Write-Host "CommandFixer: '$line' -> '$corrected'" -ForegroundColor Yellow
+    if ($line.Trim() -ne '' -and (Test-Path -LiteralPath $cfBin)) {
+        $suggestion = & $cfBin suggest "$line" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $suggestion) {
+            Write-Host ""
+            Write-Host "CommandFixer: did you mean: $suggestion [Y/n] " -NoNewline -ForegroundColor Yellow
+            $key = [Console]::ReadKey($true)
+            Write-Host ""
+            if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y' -or $key.Key -eq 'Enter') {
+                [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($suggestion)
+                & $cfBin log "$line" "$suggestion" 2>$null
+            }
+        }
+    }
+    $cfBuf = $null; $cfPos = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$cfBuf, [ref]$cfPos)
+    if ($cfBuf -ne $null -and $cfBuf.Trim() -ne '') {
+        $cfBacktick = [char]96
+        $cfTrimmed = $cfBuf.TrimEnd()
+        $cfNoBt = $cfTrimmed.TrimEnd($cfBacktick).TrimEnd()
+        if ($cfNoBt -ne $cfTrimmed) {
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($corrected)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($cfNoBt)
+            $cfBuf = $cfNoBt
+        }
+        $cfTok = $null; $cfErr = $null
+        [System.Management.Automation.Language.Parser]::ParseInput($cfBuf, [ref]$cfTok, [ref]$cfErr)
+        if ($cfBuf -ne '' -and @($cfErr | Where-Object { $_.IncompleteInput }).Count -gt 0) {
+            [System.Console]::Beep(800, 150)
+            return
         }
     }
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
@@ -320,14 +349,33 @@ Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
 # End CommandFixer Integration
 ```
 
-**Flow:**
-1. `GetBufferState` extracts the current input line.
-2. Binary is invoked with `correct <line>`. stderr is suppressed (`2>$null`) to avoid noise on config errors.
-3. `$LASTEXITCODE -eq 0` guards against binary crashes silently.
-4. `RevertLine` + `Insert` replaces the buffer atomically.
-5. `AcceptLine` submits the (possibly replaced) line for execution.
+This block is a copy, so `shell/architecture_test.go` fails whenever it differs
+from what `ProfileSnippet` generates; the failure message carries the block to
+paste in. An earlier copy drifted until it described a hook that no longer
+existed, with nothing to notice. The Go doc comment on `ProfileSnippet` explains
+each part of it.
 
-**Failure mode:** if the binary fails (bad config, missing binary), the original command runs unchanged. CommandFixer failures are never user-visible beyond a missing correction.
+**Flow:**
+1. `GetBufferState` reads the current input line.
+2. If the line is not blank and the binary still exists (`Test-Path`), it runs
+   `commandfixer.exe suggest "<line>"` with stderr discarded (`2>$null`).
+3. On exit code 0 with output, it shows
+   `CommandFixer: did you mean: <suggestion> [Y/n]` and reads a single key.
+   Y, y or Enter replaces the buffer (`RevertLine` then `Insert`) and records
+   the correction with `commandfixer.exe log "<line>" "<suggestion>"`. Any
+   other key keeps the line as typed.
+4. The completeness guard then reads the buffer again. A trailing backtick is
+   stripped, since it would escape the newline and open the `>>` prompt. The
+   line is then parsed with PowerShell's own parser; if the parse reports
+   `IncompleteInput` (an unclosed quote, a dangling pipe), the hook beeps and
+   returns without submitting, so the line stays open for editing.
+5. Otherwise `AcceptLine` submits the line, corrected or not.
+
+**Failure mode:** a missing binary is skipped by the `Test-Path` check; a binary
+that fails or prints nothing leaves the line as typed. Either way the original
+command runs unchanged, so a CommandFixer failure is never visible beyond a
+missing correction. The one thing the hook does stop is input that would open
+the continuation prompt, which it holds on the line rather than submitting.
 
 ---
 
