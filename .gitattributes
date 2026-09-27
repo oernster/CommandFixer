@@ -1,0 +1,8 @@
+# Go source is checked out with LF endings on every platform.
+#
+# gofmt writes LF and `gofmt -l` lists any file whose bytes differ from its
+# output, so a CRLF checkout (the default on Windows, where git is installed
+# with core.autocrlf=true) failed `.\build.ps1 -Lint` on every Go file while
+# the committed content was already clean. Stating the ending here makes the
+# checkout agree with the formatter whatever a developer's git config says.
+*.go text eol=lf

@@ -2,7 +2,7 @@
 #
 # This is the whole workflow. It replaced a Makefile that duplicated it on a
 # platform this tool's developer does not use: CommandFixer corrects PowerShell
-# commands, its users are on Windows, and a checklist you cannot run is a
+# commands and its users are on Windows; a checklist you cannot run is a
 # checklist that goes stale. One runner, runnable where the work happens.
 #
 # Usage:
@@ -37,8 +37,8 @@ $CoverFile  = "coverage.out"
 $CoverHTML  = "coverage.html"
 $VersionFile = "VERSION"
 
-# Printed when VERSION cannot be read, and compiled in as the default by
-# main.go for the same reason: a binary that was built without the version
+# Printed when VERSION cannot be read; main.go compiles it in as the default
+# for the same reason: a binary that was built without the version
 # should say so rather than claim a number it does not have.
 $FallbackVersion = "0.0.0-dev"
 
@@ -84,10 +84,29 @@ if ($Lint) {
     Write-Host "Checking formatting..." -ForegroundColor Cyan
     # gofmt reports unformatted files on stdout and still exits 0, so the
     # output is the result rather than the exit code.
-    $unformatted = & gofmt -l .
+    #
+    # `gofmt -l .` walks every directory under the root, including ones the go
+    # tool skips, such as a git worktree nested inside the repository, so it
+    # judged checkouts that are not this one. Hand it the files of the packages
+    # `go list` reports instead: the same scope go vet and staticcheck check.
+    $packageDirs = & go list -f '{{.Dir}}' ./...
+    Assert-Succeeded "go list"
+    $goFiles = $packageDirs |
+        ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter *.go -File } |
+        ForEach-Object { Resolve-Path -Relative $_.FullName }
+    $unformatted = & gofmt -l $goFiles
     if ($unformatted) {
         Write-Host "  Not gofmt-clean:" -ForegroundColor Red
         $unformatted | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+        # .gitattributes checks Go files out with LF. A working tree made
+        # before it existed keeps its CRLF copies until they are rewritten;
+        # gofmt lists every one of them. Name that cause rather than leave a
+        # clean file looking misformatted.
+        $crlf = @($unformatted | Where-Object { (Get-Content $_ -Raw) -match "`r" })
+        if ($crlf.Count -gt 0) {
+            Write-Host "  $($crlf.Count) of these have CRLF line endings, which gofmt rejects." -ForegroundColor Yellow
+            Write-Host "  Rewrite them with LF once: see 'Line endings' in DEVELOPMENT.md." -ForegroundColor Yellow
+        }
         exit 1
     }
     Write-Host "  gofmt clean." -ForegroundColor Green

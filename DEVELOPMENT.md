@@ -63,6 +63,28 @@ corrects PowerShell commands and its users are on Windows, so a second copy of
 the workflow written for a platform its developer does not use was a checklist
 that could not be run and went stale. One runner, runnable where the work is.
 
+### Line endings
+
+`.gitattributes` checks every `.go` file out with LF, whatever `core.autocrlf`
+says. It has to: gofmt writes LF, so on a default Windows git install (which
+sets `core.autocrlf=true`) a CRLF checkout made `-Lint` list every Go file as
+unformatted while the committed code was clean.
+
+A fresh clone needs nothing doing. A working tree cloned before the attribute
+existed keeps its CRLF files until they are written again; `-Lint` says so
+when it finds them. Rewrite them once, from the repository root:
+
+```powershell
+git ls-files '*.go' | ForEach-Object { $path = (Resolve-Path $_).Path; $text = [IO.File]::ReadAllText($path); [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n")) }
+git add --renormalize .
+```
+
+The first line converts in place, so uncommitted edits to a Go file survive it.
+Without the second, `git status` goes on listing every Go file as modified even
+though `git diff` shows nothing. `git add --renormalize .` clears that; it stages
+nothing except files you had already changed, which it does stage. Unstage those
+with `git restore --staged <file>` if you want them left out.
+
 ---
 
 ## Project Layout
