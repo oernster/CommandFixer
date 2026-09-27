@@ -53,7 +53,8 @@ $StaticcheckPackage = "honnef.co/go/tools/cmd/staticcheck@latest"
 
 function Get-BuildVersion {
     # The VERSION file is the single source of truth. Nothing else in the
-    # repository holds a real version string.
+    # repository holds a real version string, bar the copies stamp_version.ps1
+    # writes from it into the docs.
     if (Test-Path $VersionFile) {
         $version = (Get-Content $VersionFile -Raw).Trim()
         if ($version) { return $version }
@@ -169,6 +170,13 @@ if ($Test) {
 }
 
 # ---- Build ---------------------------------------------------------------
+
+# The docs cannot read VERSION, so they carry stamped copies of it. Stamping
+# them on every build means a release cannot ship a site that names the last
+# version.
+Write-Host "Stamping the version into the docs..." -ForegroundColor Cyan
+& (Join-Path $PSScriptRoot 'stamp_version.ps1')
+Assert-Succeeded "Version stamp"
 
 $version = Get-BuildVersion
 Write-Host "Building $BinaryName ($version)..." -ForegroundColor Cyan

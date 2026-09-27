@@ -96,7 +96,9 @@ CommandFixer/
 ├── commands_test.go         suggest, correct, log and stats
 ├── install_test.go          The commands that write to a PowerShell profile
 ├── structural_test.go       Import-boundary and file-size rules
+├── path_windows_test.go     The PATH lookup against a real code.cmd shim
 ├── VERSION                  The single source of truth for the version
+├── .gitattributes           Go files checked out with LF on every platform
 ├── go.mod                   Module definition (no external deps)
 ├── config/
 │   ├── loader.go            JSON config load/save, defaults
@@ -107,12 +109,14 @@ CommandFixer/
 │   ├── distance.go          Damerau-Levenshtein distance and similarity
 │   ├── engine_test.go
 │   ├── windows_test.go
+│   ├── lookup_test.go       A real command is never renamed
 │   └── distance_test.go
 ├── shell/
 │   ├── powershell.go        Profile snippet generation and install/uninstall
 │   ├── powershell_test.go   The snippet, the paths, the read-only operations
 │   ├── install_test.go      The operations that change a profile
-│   └── markers_test.go      Go and PowerShell markers still agree
+│   ├── markers_test.go      Go and PowerShell markers still agree
+│   └── architecture_test.go The snippet in ARCHITECTURE.md is the real one
 ├── logger/
 │   ├── stats.go             JSONL log writer and stats aggregator
 │   └── stats_test.go
@@ -120,6 +124,7 @@ CommandFixer/
 ├── profile-hook.ps1         Hook markers and profile paths, defined once
 ├── install.ps1              One-shot installer
 ├── uninstall.ps1            Uninstaller, with a binary-independent fallback
+├── stamp_version.ps1        Writes VERSION into the docs' version stamps
 └── build.ps1                Build, test, lint and coverage runner
 ```
 
@@ -274,5 +279,15 @@ link time, which only works because `appVersion` is a `var`: the linker cannot
 write to a `const`, so while it was one this flag was accepted and silently did
 nothing and the binary kept whatever literal was in the source.
 
-Never write a version anywhere but `VERSION`. Nothing else in the repository
-holds a real version string.
+Never write a version anywhere but `VERSION`. The only other copies are the
+stamped tokens in the docs, `<!--VERSION-->1.4.0<!--/VERSION-->`, which
+`stamp_version.ps1` rewrites from `VERSION` across the root `*.md` files and
+everything under `docs/`. The build runs it first, so a bump needs no second
+edit; to update the docs without building, run it on its own:
+
+```powershell
+.\stamp_version.ps1
+```
+
+It writes only files whose stamp is out of date and refuses a `VERSION` that
+is not `MAJOR.MINOR.PATCH`, so nothing but a real release reaches the site.
