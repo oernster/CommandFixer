@@ -11,9 +11,8 @@ only looks like debt and is to be left alone.
 
 ### PowerShell on Windows, nothing else
 
-CommandFixer hooks the Enter key of PowerShell 7 and Windows PowerShell 5
-through PSReadLine. The build script produces a Windows binary; there is no
-version for any other shell.
+CommandFixer hooks the Enter key of PowerShell 7 and Windows PowerShell 5.
+There is no version for any other shell or platform.
 
 - **Rather than:** a general shell tool for bash, zsh or cmd.
 - **Gains:** one prompt mechanism to get right; the correction list can
@@ -33,13 +32,10 @@ wrong command is left as it is.
 ### A built-in database rather than a dictionary to write
 
 The tools, their subcommands, the Windows commands and the PowerShell aliases
-are compiled into the binary. The settings file holds settings alone: where
-the log goes, its size and how close a match must be. The first version
-worked from a list of typo rules the user wrote in the settings file,
-optionally as regular expressions; that
-list was retired.
+are compiled into the program. The settings hold settings alone: where the
+log goes, its size and how close a match must be.
 
-- **Rather than:** a hand-maintained typo dictionary.
+- **Rather than:** a typo dictionary the user writes and maintains.
 - **Gains:** it corrects useful mistakes the moment it is installed, with
   nothing written first.
 - **Costs:** teaching it a new tool is a change to the source and a rebuild.
@@ -47,8 +43,7 @@ list was retired.
 
 ### A suggestion is asked about, never applied silently
 
-When there is a correction the prompt shows it and waits for one key. The
-first version replaced the line on its own and only reported what it had done.
+When there is a correction the prompt shows it and waits for one key.
 
 - **Rather than:** rewriting the line behind the user's back.
 - **Gains:** nothing runs that the user did not see first.
@@ -56,9 +51,9 @@ first version replaced the line on its own and only reported what it had done.
 
 ### Nothing leaves the machine
 
-No Go file in the product imports a networking package. The binary reads its
-settings and writes its log in the user's own folder; there is no account, no
-telemetry and nothing running in the background.
+The program reads its settings and writes its log in the user's own folder.
+It makes no network connection; there is no account, no telemetry and nothing
+running in the background.
 
 - **Rather than:** shared or downloaded correction lists; usage figures.
 - **Gains:** nothing about what is typed goes anywhere.
@@ -70,24 +65,34 @@ telemetry and nothing running in the background.
 
 ### Transpositions count as one mistake
 
-Similarity is measured with the Damerau-Levenshtein distance, which counts two
-swapped neighbouring letters as one edit, scaled by the longer word's length.
+Similarity counts two swapped neighbouring letters as a single edit, scaled by
+the length of the longer word.
 
-- **Rather than:** plain Levenshtein distance, which counts a swap as two.
+- **Rather than:** an edit distance that counts a swap as two edits.
 - **Gains:** the commonest typing slip (psuh for push, gti for git) scores as
   close as it looks.
 - **Costs:** none recorded.
 
 ### One threshold the user can tune
 
-A match must reach a similarity of 0.6 to be offered. The settings file can
-change that within the range above zero up to one; a value outside it falls
-back to the default.
+A match must reach one similarity threshold to be offered. The settings can
+move it; a value outside the valid range falls back to the default.
 
 - **Rather than:** a fixed figure; per-tool sensitivities.
 - **Gains:** one setting explains the behaviour.
 - **Costs:** lowering it catches more typos at the price of corrections
   nobody wanted.
+
+### A line of one word is left alone
+
+Correction needs at least two words on the line. A lone mistyped word is
+never offered a suggestion; the same word followed by anything is.
+
+- **Rather than:** correcting every line, however short.
+- **Gains:** a bare word that may be a function or alias of the user's own,
+  which the PATH check cannot see, is never rewritten into a command it only
+  resembles.
+- **Costs:** a mistyped command typed on its own is not caught.
 
 ### An exact match is never corrected
 
@@ -95,21 +100,19 @@ A word that already appears in the database is left alone. That is why
 PowerShell's POSIX-style aliases are listed as commands in their own right.
 
 - **Rather than:** always taking the nearest entry.
-- **Gains:** a valid command is never rewritten into its neighbour. Before ls
-  was listed, it was rewritten to cls.
+- **Gains:** a valid command is never rewritten into its neighbour.
 - **Costs:** every valid name has to be in the database. A real subcommand
   missing from a tool's list is corrected to its nearest neighbour.
 
 ### A real command on PATH is never renamed
 
-Before renaming the first word, the engine asks whether a command of that name
-resolves on PATH, extensions such as .cmd included. If it does, the line is
-left alone. A program found only in the current folder does not count, since
-PowerShell will not run it without a .\ prefix either. Only the first word
-is asked about: the subcommand of a known tool is still corrected.
+Before renaming the first word, the program asks whether a command of that
+name resolves on PATH, script shims included. If it does, the line is left
+alone. A program found only in the current folder does not count, since
+PowerShell will not run it without a path either. Only the first word is
+asked about: the subcommand of a known tool is still corrected.
 
 - **Rather than:** trusting the database to know every program a machine has.
-  Without this check code became mode, node became mode and tar became start.
 - **Gains:** installed programs the database has never heard of are safe.
 - **Costs:** a typo that happens to be the name of a real program is not
   caught.
@@ -137,7 +140,7 @@ has its subcommand corrected too.
 
 The correction engine takes a string and returns a string. It reads no files,
 no environment and no clock; the PATH check is handed to it from outside. A
-structural test forbids it any import that reaches outside the process.
+structural test forbids it anything that reaches outside the process.
 
 - **Rather than:** letting the engine look things up for itself.
 - **Gains:** its tests are plain cases with no fixtures to build.
@@ -148,11 +151,10 @@ structural test forbids it any import that reaches outside the process.
 
 ### A fresh process on every Enter
 
-The hook runs the installed binary by its full path each time Enter is
+The hook runs the installed program by its full path each time Enter is
 pressed on a line that is not blank.
 
-- **Rather than:** a resident service the hook talks to, which the
-  architecture notes describe as a possible later option.
+- **Rather than:** a resident service the hook talks to.
 - **Gains:** nothing runs in the background; a new build is used on the very
   next Enter without restarting the shell.
 - **Costs:** a process starts for every command typed.
@@ -168,7 +170,7 @@ as typed.
 
 ### A failure is never visible
 
-A missing binary is skipped by a check before it is called. A binary that
+A missing program is skipped by a check before it is called. A program that
 fails or prints nothing leaves the line as typed. Either way the command runs
 unchanged.
 
@@ -190,12 +192,21 @@ quote, a dangling pipe) beeps and stays on the line.
 - **Costs:** a trailing backtick is always removed; incomplete input cannot be
   submitted with Enter.
 
+### The documented hook is the real hook
+
+The hook shown in the architecture notes is checked by a test against what the
+program generates.
+
+- **Rather than:** a hand-kept copy.
+- **Gains:** a reader sees exactly what is installed, without installing it.
+- **Costs:** the documentation is held to the exact text of the code.
+
 ### Both PowerShells, one profile each
 
 The hook is written into the all-hosts profile of the current user for
 PowerShell 7 and for Windows PowerShell 5 alike.
 
-- **Rather than:** PowerShell 7 alone, as at first.
+- **Rather than:** PowerShell 7 alone.
 - **Gains:** the same behaviour in whichever PowerShell is opened.
 - **Costs:** a profile file is created for a shell that may never be used.
 
@@ -203,18 +214,19 @@ PowerShell 7 and for Windows PowerShell 5 alike.
 
 ### Installed for one user
 
-The binary goes into the user's local application data folder, which is added
+The program goes into the user's local application data folder, which is added
 to the user's own PATH. Settings and the log live in a folder in the user's
 home directory.
 
 - **Rather than:** a machine-wide install.
-- **Gains:** nothing outside the user's own folders and settings is changed.
+- **Gains:** nothing outside the user's own folders and settings is changed;
+  no administrator rights are asked for.
 - **Costs:** each account on a machine installs separately.
 
 ### Installing again leaves the hook as it is
 
 A profile that already holds the hook is not touched by a second install. The
-installer overwrites the binary and keeps the PATH entry and any existing
+installer overwrites the program and keeps the PATH entry and any existing
 settings.
 
 - **Rather than:** replacing the hook block on every install.
@@ -222,14 +234,15 @@ settings.
 - **Costs:** a release that changes the hook needs an uninstall before the
   install, then a restart of PowerShell.
 
-### Removal works without the binary
+### Removal works without the program
 
-The hook sits between fixed marker lines. The binary removes the block when
+The hook sits between fixed marker lines. The program removes the block when
 it is present; the uninstall script carries its own way of removing it for
-when the binary has already gone. The markers are defined once in Go and once
-in a shared PowerShell file; a test fails if the two disagree.
+when the program has already gone. The markers are defined once in the
+program and once in a script both install scripts share; a test fails if the
+two disagree.
 
-- **Rather than:** an uninstall that needs the binary; one marker definition
+- **Rather than:** an uninstall that needs the program; one marker definition
   generated for both languages.
 - **Gains:** an uninstall always uninstalls. A marker changed on one side only
   cannot leave a hook nothing can find.
@@ -237,8 +250,8 @@ in a shared PowerShell file; a test fails if the two disagree.
 
 ### The user's data is kept on removal
 
-Uninstalling removes the hook, the binary and the PATH entry. The settings and
-the log stay unless removal is asked for explicitly.
+Uninstalling removes the hook, the program and the PATH entry. The settings
+and the log stay unless removal is asked for explicitly.
 
 - **Rather than:** removing everything.
 - **Gains:** a reinstall picks up where the user left off.
@@ -266,8 +279,8 @@ line of JSON. Reading the statistics skips any line it cannot parse.
 
 ### No rotation
 
-The log grows without limit. The settings file carries a maximum line count;
-nothing acts on it yet.
+The log grows without limit. The settings carry a maximum line count; nothing
+acts on it.
 
 - **Rather than:** trimming the log as it grows.
 - **Gains:** each correction is one append with nothing read back.
@@ -281,8 +294,8 @@ The program is one Go binary using only the standard library, with no C code.
 
 - **Rather than:** third-party packages; cgo.
 - **Gains:** a single file with nothing beside it to fail to load.
-- **Costs:** Go's race detector needs cgo, so it cannot run here. It was
-  removed rather than left as a switch that could only fail; the one lock in
+- **Costs:** Go's race detector needs cgo, so it cannot run here. It is
+  absent rather than offered as a switch that could only fail; the one lock in
   the logger is held by review.
 
 ### Four packages, one place where they meet
@@ -297,21 +310,25 @@ import another.
 - **Costs:** none recorded. At this size four cohesive packages is the
   proportionate shape.
 
-### Small files
+### Rules held by tests, not by habit
 
-No Go file may exceed four hundred lines, tests included. None may sit in the
-last five per cent below that. A file that has to be split is split to a
-size with room in it.
+The shape of the code is checked by the suite: a size cap on every Go file,
+tests included, with a band just below it that also fails; the package
+boundaries; the purity of the engine. Tests write to temporary folders and
+call the code directly, with no mocking library; the PATH check runs against
+a real folder holding a real script shim.
 
-- **Rather than:** letting files grow; shaving a file to just under the cap.
-- **Gains:** files split at real seams. The correction package became three
-  files (data, policy and metric) along this rule.
-- **Costs:** more files.
+- **Rather than:** conventions kept by review; mocks standing in for the
+  filesystem and PATH.
+- **Gains:** a file that has to be split is split at a real seam rather than
+  shaved; a passing test means the real thing works.
+- **Costs:** more, smaller files; the PATH tests change settings for the
+  whole process, so they run alone.
 
 ### A coverage floor at the level the suite holds
 
-The coverage gate fails below 83 per cent, the level the suite already held
-when it was set.
+The coverage gate fails below the level the suite already held when it was
+set, not below a round target.
 
 - **Rather than:** a round aspirational figure.
 - **Gains:** the gate is never lowered to let a run pass; it is raised when
@@ -319,68 +336,39 @@ when it was set.
 - **Costs:** the commands that write to a real user's profile stay partly
   untested.
 
-### Tests with real files
+### One build script, run where the users are
 
-Tests write to temporary folders and call the code directly. There is no
-mocking library. The PATH check is tested against a real folder holding a
-.cmd shim. The recent regression tests and guards were each seen to fail
-with the fix removed before they were kept.
+Build, test, lint, coverage and clean are one PowerShell script; an unknown
+switch is an error rather than being ignored. Go source is checked out
+with LF line endings whatever the local git settings, so the formatter agrees
+with a Windows checkout.
 
-- **Rather than:** mocks standing in for the filesystem and PATH.
-- **Gains:** a passing test means the real thing works.
-- **Costs:** the PATH tests change settings for the whole process, so they
-  run alone.
-
-### The documented hook is the real hook
-
-The hook shown in ARCHITECTURE.md is checked by a test against what the code
-generates. An earlier copy drifted until it described a hook that no longer
-existed.
-
-- **Rather than:** a hand-kept copy.
-- **Gains:** a reader sees exactly what is installed; the failure message
-  carries the block to paste in.
-- **Costs:** the documentation is held to the exact text of the code.
-
-### One build script
-
-The build, test, lint, coverage and clean steps are one PowerShell script.
-An unknown switch is an error rather than being ignored.
-
-- **Rather than:** a Makefile, which duplicated the workflow on a platform
-  the tool's users do not use and went stale.
-- **Gains:** one runner, runnable where the work happens. A mistyped switch
-  can no longer run a plain build and report success.
+- **Rather than:** a second workflow for a platform the tool's users do not
+  use; the Windows default of CRLF.
+- **Gains:** one runner, runnable where the work happens; a mistyped switch
+  cannot run a plain build and report success.
 - **Costs:** the lint step runs the latest staticcheck, so its version is not
-  pinned.
+  pinned; a working tree cloned before the line-ending rule needs a one-time
+  rewrite.
 
 ### One home for the version
 
 The version lives in one file. The build writes it into the binary at link
-time and stamps it into the docs and the site, refusing anything that is not
-a plain three-part version. The site's stylesheet and script links also
-carry a hash of their content.
+time and stamps it into the site, refusing anything that is not a plain
+three-part version; the repository's documents carry no version at all. The
+site's stylesheet links also carry a hash of their content.
 
 - **Rather than:** version strings edited by hand in several places.
 - **Gains:** a release cannot ship a site naming the previous version; a
   browser fetches a changed stylesheet at once rather than a cached one.
-- **Costs:** the docs carry stamp markers; the site must be stamped from the
+- **Costs:** the site carries stamp markers and must be stamped from the
   source.
-
-### Go files checked out with LF
-
-Every Go file is checked out with LF line endings whatever the local git
-settings.
-
-- **Rather than:** the Windows default of CRLF.
-- **Gains:** the formatter no longer lists every clean file as wrong on a
-  Windows checkout.
-- **Costs:** a working tree cloned before the rule needs a one-time rewrite.
 
 ### GPL-3.0
 
-CommandFixer is released under the GPL, version 3.
+CommandFixer is released under the GPL, version 3, with a commercial licence
+available separately.
 
 - **Rather than:** a permissive licence.
-- **Gains:** the portfolio default for tools; changes stay open.
+- **Gains:** changes stay open; a closed-source user pays for the right.
 - **Costs:** none recorded.

@@ -44,12 +44,12 @@
       <div class="eyebrow">The reasoning</div>
       <h2 class="section-title">Why this exists</h2>
       <p>Command-line muscle memory produces the same small typos hundreds of times: git sattus,
-        docker imagse, transposed letters in commands typed dozens of times a day. Each one costs
+        git psuh, transposed letters in commands typed dozens of times a day. Each one costs
         a failed run, a re-type and a broken train of thought. A corrector that fires after the
         error message has scrolled past is documentation; the only useful place to fix a typo is
         the gap between Enter and execution.</p>
       <p>CommandFixer lives in exactly that gap. A PSReadLine hook intercepts Enter and hands the
-        buffer to a fast Go binary, which fuzzy-matches it against a built-in database of popular
+        buffer to a small Go binary, which fuzzy-matches it against a built-in database of popular
         CLI tools and their subcommands plus the standard Windows command set. A near-miss within
         the threshold becomes a suggestion shown before anything runs; anything too far off is
         left untouched and known PowerShell aliases are recognised exactly so they are never
@@ -75,7 +75,7 @@
   <div class="container footer-inner">
     <div>
       <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
-      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.4.0<!--/VERSION-->
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.5.0<!--/VERSION-->
     </div>
     <div class="footer-links">
       <a href="./">Home</a>

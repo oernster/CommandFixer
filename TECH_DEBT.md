@@ -2,7 +2,7 @@
 
 A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal concern: nothing here proposes reverting a feature or changing observable behaviour. Scope is the whole repository (the Go packages, the PowerShell install and uninstall scripts, `build.ps1` and the GitHub Pages site) read against `ARCHITECTURE.md` and `TESTING.md`.
 
-This is a small tool (roughly 4,000 lines across twenty-one Go files) and the file is short in proportion. `build.ps1` carries the whole workflow (build, test, lint, coverage and clean) and `ARCHITECTURE.md` describes the packages honestly as modules rather than claiming a layering the code does not have.
+This is a small tool (roughly 4,100 lines across twenty-two Go files) and the file is short in proportion. `build.ps1` carries the whole workflow (build, test, lint, coverage and clean) and `ARCHITECTURE.md` describes the packages honestly as modules rather than claiming a layering the code does not have.
 
 **There is currently no open technical debt.** The sections below record what is deliberately left alone and what only looks like debt, so it is not re-raised.
 
@@ -10,11 +10,11 @@ This is a small tool (roughly 4,000 lines across twenty-one Go files) and the fi
 
 ## Looks like debt, not worth touching
 
-- The flat package layout (`config`, `corrector`, `logger`, `shell`) rather than `internal/{domain,application,infrastructure}`. At 4,000 lines with one clear input and one clear output, four cohesive packages is the proportionate structure and `ARCHITECTURE.md` describes them accurately as modules. `structural_test.go` holds one import rule over that layout, which is what the separation actually needed; four directories was never the answer.
+- The flat package layout (`config`, `corrector`, `logger`, `shell`) rather than `internal/{domain,application,infrastructure}`. At roughly 4,100 lines with one clear input and one clear output, four cohesive packages is the proportionate structure and `ARCHITECTURE.md` describes them accurately as modules. `structural_test.go` holds one import rule over that layout, which is what the separation actually needed; four directories was never the answer.
 - **The absence of a race detector.** Removed by decision on 2026-08-06 rather than left as a switch that cannot run: Go's detector requires cgo, this tool is CGO-free on purpose and the machines it is built on have no C toolchain, so it could only ever exit `-race requires cgo`. A check that cannot run reads as a check being performed, which is worse than no check. The `sync.Mutex` in `logger` is unchanged and is now held by review. Do not re-add the switch without also adding a toolchain that can run it.
 - `commandfixer.exe` in the working tree. Build output, correctly untracked.
 - `config.example.json` at root beside the `config` package. One example file for one loader.
-- `ARCHITECTURE.md`'s "Extending the Architecture" section describing a possible HTTP service mode and log rotation. Documented future options, not commitments.
+- `ARCHITECTURE.md`'s "Extending the Architecture" section describing a possible HTTP service mode, case-insensitive matching and log rotation. Documented future options, marked there as not implemented, not commitments.
 
 ## Not debt (do not "fix" these)
 

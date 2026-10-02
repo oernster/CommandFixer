@@ -1,12 +1,14 @@
 # Writes the version held in VERSION into every stamped static file.
 #
-# Markdown and the GitHub Pages site cannot read VERSION when they are shown, so
-# each place that names the version carries a token instead:
+# The GitHub Pages site cannot read VERSION when it is shown, so each place on
+# it that names the version carries a token instead:
 #
 #     <!--VERSION-->MAJOR.MINOR.PATCH<!--/VERSION-->
 #
-# This rewrites whatever sits between the two markers, across the root *.md
-# files and everything under docs/. It is idempotent: a file that already
+# This rewrites whatever sits between the two markers in everything under
+# docs/. The site is the only place the version is written out: the markdown
+# documents at the root carry no version at all, so this deliberately never
+# looks at them. It is idempotent: a file that already
 # carries the current version is not written at all. build.ps1 runs it before
 # every build, so a release cannot ship a site naming the previous version,
 # which is exactly what happened when 1.4.0 was first committed.
@@ -77,9 +79,9 @@ if ($version -notmatch $versionShape) {
     exit 1
 }
 
-$files = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter *.md -File)
+$files = @()
 if (Test-Path -LiteralPath $docsDir) {
-    $files += @(Get-ChildItem -LiteralPath $docsDir -Recurse -File -Include *.html, *.md)
+    $files = @(Get-ChildItem -LiteralPath $docsDir -Recurse -File -Include *.html, *.md)
 }
 
 $stampedCount = 0

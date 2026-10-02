@@ -182,6 +182,7 @@ type Engine struct {
 **Key design decisions:**
 
 - **No user dictionary is required.** Correction comes from the built-in database rather than from rules a user has to write, which is what makes the tool useful on first run.
+- **A line of one word is never corrected.** `Suggest` needs at least two tokens in every mode, so `ipconfg` alone is left as typed while `ipconfg /all` is corrected.
 - **Correction is tried in a fixed order**: an alias that ignores the threshold (`gti` to `git`), then subcommand correction when the first token is a known tool, then tool-name correction against both the known tools and the Windows standalone commands, with the closer of the two winning and ties going to the CLI tool.
 - **An exact match is never "corrected".** A token that already appears in the database is left alone, which is why the PowerShell POSIX-style aliases are listed explicitly: `ls` is one insertion from `cls` and would otherwise be rewritten to it.
 - **A real command is never renamed either.** Before an alias or a tool-name correction the engine asks its `CommandLookup` whether the first token runs as a command; if it does, the line is left alone. A `gti` that is really installed is a command, not a typo of `git`. Without it `code` became `mode`, `node` became `mode` and `tar` became `start`, because the database cannot list every program a machine has. The lookup guards the first token only: `git sattus` is still corrected, though `git` is plainly on PATH. An engine from `New` knows no commands beyond the database; `main` supplies the real lookup through `WithCommandLookup`.
@@ -205,7 +206,7 @@ Generates and manages the PowerShell profile hook.
 
 **Key design decisions:**
 
-- The hook uses `Set-PSReadLineKeyHandler -Key Enter`. This is the standard PSReadLine API for intercepting keystrokes. It requires PowerShell 7 with PSReadLine 2.x (shipped by default).
+- The hook uses `Set-PSReadLineKeyHandler -Key Enter`. This is the standard PSReadLine API for intercepting keystrokes. It needs PSReadLine 2.x, which both shells ship: PowerShell 7 bundles it and Windows PowerShell 5.1 carries 2.0.0 in its own modules folder.
 - The snippet is delimited by exact start/end marker strings. This makes install idempotent (detects existing hook) and makes uninstall reliable (removes the exact block).
 - Those markers exist in two languages and have to. The binary writes and removes the block but `uninstall.ps1` must still work when the binary is already gone, so it carries a fallback that strips the block itself. The scripts define their copy once in `profile-hook.ps1`; `shell/markers_test.go` reads that file and fails if the Go constants drift from it. A marker changed on one side only would leave a hook line nothing can find to remove, running on every prompt a user types.
 - The hook snippet appears a second time, in PowerShell Hook Mechanics below, so a reader can see it without installing anything. `shell/architecture_test.go` fails when that copy differs from what `ProfileSnippet` generates; its message carries the block to paste in.
@@ -217,7 +218,9 @@ Generates and manages the PowerShell profile hook.
 | Function | Description |
 |----------|-------------|
 | `ProfileSnippet(binaryPath)` | Generate the PS block to inject |
-| `DefaultProfilePath()` | `$HOME/Documents/PowerShell/profile.ps1` |
+| `DefaultProfilePath()` | `$HOME/Documents/PowerShell/profile.ps1` (PowerShell 7) |
+| `PS5ProfilePath()` | `$HOME/Documents/WindowsPowerShell/profile.ps1` (Windows PowerShell 5) |
+| `AllProfilePaths()` | Both of the above, PowerShell 7 first; what `install` and `uninstall` use without a profile argument |
 | `Install(profilePath, binaryPath)` | Append hook; ErrAlreadyInstalled if present |
 | `Uninstall(profilePath)` | Remove hook; ErrNotInstalled if absent |
 | `IsInstalled(profilePath)` | Check without modifying |
@@ -242,7 +245,7 @@ type CorrectionEntry struct {
     Timestamp time.Time // UTC
     Original  string
     Corrected string
-    Rule      string    // "from -> to" label
+    Rule      string    // always "auto-fuzzy" today
 }
 
 type Stats struct {
@@ -263,6 +266,7 @@ type Logger struct {
 - **Append-only writes** via `os.O_APPEND`. Each entry is one write of one line, with no seek and no overwrite, so separate invocations (multiple PS windows) add lines rather than rewrite the file. Nothing locks the file across processes.
 - **`sync.Mutex`** inside Logger for safe concurrent use within one process.
 - **`ReadStats` returns empty stats (not error) for missing file.** First run before any correction has occurred should not fail.
+- **Every entry carries the same rule label.** Both `correct` and `log` write `auto-fuzzy`, so the per-rule breakdown `stats` prints has one line.
 
 ---
 
@@ -282,10 +286,11 @@ None. CommandFixer uses only the Go standard library:
 | `sync` | Logger mutex |
 | `time` | Log timestamps |
 | `errors` | Sentinel error values |
+| `io/fs` | Telling a missing config file from any other read failure |
 
 Test-only and not linked into the binary: `go/parser` and `go/token` for the
-import-boundary scan, `bufio` and `io/fs` for the file-size scan; `regexp`
-for reading a value out of `profile-hook.ps1`.
+import-boundary scan, `bufio` for the file-size scan; `regexp` for reading a
+value out of `profile-hook.ps1`.
 
 ---
 
@@ -380,6 +385,9 @@ the continuation prompt, which it holds on the line rather than submitting.
 ---
 
 ## Extending the Architecture
+
+**None of the following exists today.** Each is a sketch of where the change
+would go if it were wanted; nothing in the code implements any of it.
 
 ### Adding a service mode (HTTP)
 

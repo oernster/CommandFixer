@@ -1,10 +1,12 @@
 # CommandFixer
 
-A lightweight Go binary that auto-corrects your common typing mistakes in PowerShell before commands execute.
+A lightweight Go binary that catches your common typing mistakes in PowerShell before commands execute.
 
-Type `git sattus`, press Enter and CommandFixer silently swaps it for `git status` - then runs it, if you approve.
+Type `git sattus`, press Enter and CommandFixer offers `git status`; the corrected line runs once you accept it.
 
 Works in both **PowerShell 7** (`pwsh`) and **Windows PowerShell 5** (`powershell.exe`).
+
+> **Commercial licences available.** CommandFixer is free and open source under GPL-3.0. If those terms do not suit what you are building, such as a closed-source product, a commercial licence can be bought from me separately. It covers my own code; the Go standard library it is built with keeps its own licence. See [commercial licensing](https://ernster.dev/commercial-licensing.html).
 
 ## Who it is for and who it is not for
 
@@ -16,8 +18,34 @@ corrected command runs.
 It is not a shell, not a replacement for tab completion and not a command generator. It
 matches against a database of common CLI tools using a similarity threshold, so it
 corrects spelling rather than intent: it will turn a misspelt command into the one you
-meant to type, never a wrong command into the right one. It works by hooking PowerShell
-profiles on Windows and has no meaning outside that environment.
+meant to type, never a wrong command into the right one. It only looks at lines of two
+words or more, so a lone mistyped word such as `ipconfg` is left as typed. It works by
+hooking PowerShell profiles on Windows and has no meaning outside that environment.
+
+---
+
+## What it does
+
+- Corrects a mistyped subcommand of a known tool (`git sattus` to `git status`,
+  `npm isntall` to `npm install`), keeping every argument after it.
+- Corrects a mistyped tool or Windows command name (`dokcer ps` to `docker ps`,
+  `ipconfg /all` to `ipconfig /all`) and the habitual `gti` to `git`.
+- Never renames a first word that already runs as a command on your PATH, so a
+  program the database has never heard of is left alone.
+- Asks before anything changes: Y or Enter accepts, any other key keeps the line.
+- Holds input that would open PowerShell's `>>` continuation prompt (a trailing
+  backtick is stripped; an unclosed quote or a dangling pipe beeps and stays on
+  the line).
+- Logs each accepted correction to a local file and counts them on request.
+
+## Stack
+
+| Part | What |
+|------|------|
+| Language | Go 1.21 or later, standard library only, no cgo |
+| Prompt hook | PSReadLine, in PowerShell 7 and Windows PowerShell 5 |
+| Install and build | PowerShell scripts: `build.ps1`, `install.ps1`, `uninstall.ps1` |
+| Storage | A JSON settings file and a JSONL log in your home directory |
 
 ---
 
@@ -46,10 +74,10 @@ go build -o commandfixer.exe .
 The installer:
 - Copies `commandfixer.exe` to `%LOCALAPPDATA%\CommandFixer\`
 - Adds that directory to your user `PATH`
-- Copies `config.example.json` to `%USERPROFILE%\.typo-fixer\config.json`
+- Copies `config.example.json` to `%USERPROFILE%\.typo-fixer\config.json` when you have no config there yet
 - Hooks into your PowerShell profile for both PS7 and PS5
 
-Then **restart PowerShell** (both `pwsh` and `powershell.exe` will have the hook).
+Everything is per user, so no administrator rights are needed. Then **restart PowerShell** (both `pwsh` and `powershell.exe` will have the hook).
 
 ### 3. Uninstall
 
@@ -124,13 +152,14 @@ If you want to tune it, edit `%USERPROFILE%\.typo-fixer\config.json`:
 ```
 
 `similarity_threshold` is how close a typo must be to a known command before it
-is offered, in the range (0.0, 1.0]. Lower catches more typos and starts
-offering corrections you did not want. `log_file` empty means the default
-location below.
+is offered, in the range (0.0, 1.0]; a value outside it falls back to 0.6.
+Lower catches more typos and starts offering corrections you did not want.
+`log_file` empty means the default location below. `max_log_lines` is read but
+nothing acts on it: the log is never trimmed.
 
 ### 5. Use It
 
-Type any misconfigured command and press Enter:
+Type a mistyped command and press Enter:
 
 ```
 PS> git sattus
@@ -152,7 +181,7 @@ CommandFixer hooks into **PSReadLine** (built into both PowerShell 7 and Windows
 4. If there is a suggestion, PowerShell shows it and waits for you to confirm.
 5. The corrected command executes only if you accept it.
 
-No system-wide keyboard hooks. No persistent service required. The binary runs once each time you press Enter on a command, then exits.
+No system-wide keyboard hooks. No persistent service required. The binary runs once each time you press Enter on a command, then exits. Nothing it does reaches the network.
 
 ---
 
@@ -164,7 +193,7 @@ commandfixer correct <cmd>       Like suggest but also logs the correction
 commandfixer log <from> <to>     Record a correction you accepted (used by hook)
 commandfixer install [profile]   Add PSReadLine hook to your profile(s)
 commandfixer uninstall [profile] Remove the hook from your profile(s)
-commandfixer stats               Show correction count and rule breakdown
+commandfixer stats               Show how many corrections have been logged
 commandfixer version             Print version
 commandfixer help                Show help
 ```
@@ -175,7 +204,7 @@ Without a `[profile]` argument, `install` and `uninstall` target both PS7 and PS
 
 ```powershell
 commandfixer correct "git sattus"
-# Prints: git status
+# Prints: git status (and records the correction in the log)
 ```
 
 ---
@@ -192,13 +221,24 @@ commandfixer correct "git sattus"
 
 ---
 
+## Testing
+
+```powershell
+.\build.ps1 -Coverage    # the whole suite, failing below the coverage floor
+.\build.ps1 -Lint        # gofmt, go vet and staticcheck
+```
+
+[TESTING.md](TESTING.md) covers the floor, what each suite proves and how to run part of it.
+
+---
+
 ## Further Reading
 
-- [DEVELOPMENT.md](DEVELOPMENT.md) - build steps, local dev workflow, debugging
-- [ARCHITECTURE.md](ARCHITECTURE.md) - system design, module breakdown, data flow
-- [TESTING.md](TESTING.md) - testing strategy, coverage requirements, how to run tests
-- [TECH_DEBT.md](TECH_DEBT.md) - what is still open, what is deliberately left and what only looks like debt
-- [`DECISIONS-TRADEOFFS.md`](DECISIONS-TRADEOFFS.md) sets out the decisions CommandFixer rests on, with what each one gains and what it costs.
+- [DEVELOPMENT.md](DEVELOPMENT.md): build steps, local dev workflow, debugging
+- [ARCHITECTURE.md](ARCHITECTURE.md): system design, module breakdown, data flow
+- [TESTING.md](TESTING.md): testing strategy, coverage requirements, how to run tests
+- [TECH_DEBT.md](TECH_DEBT.md): what is still open, what is deliberately left and what only looks like debt
+- [DECISIONS-TRADEOFFS.md](DECISIONS-TRADEOFFS.md): the decisions CommandFixer rests on, with what each one gains and what it costs
 
 ---
 
@@ -207,3 +247,11 @@ commandfixer correct "git sattus"
 CommandFixer is free and stays free. There is no paid tier, no licence key and no feature held back behind a donation. If it has saved you time or simply been useful, a donation supports its maintenance and continued development.
 
 <a href="https://www.paypal.com/ncp/payment/7B63G27P2966Y"><img src="docs/donate.png" alt="Donate to CommandFixer" width="120"></a>
+
+---
+
+## Licence
+
+CommandFixer is released under the GNU General Public License v3.0; see [LICENSE](LICENSE).
+
+A commercial licence is available for uses the GPL does not suit: see [commercial licensing](https://ernster.dev/commercial-licensing.html).

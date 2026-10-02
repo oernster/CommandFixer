@@ -63,7 +63,7 @@ if (-not (Test-Path $ConfigDest)) {
     New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
     Copy-Item -Path $ConfigExample -Destination $ConfigDest -Force
     Write-Host "Copied example config to: $ConfigDest" -ForegroundColor Cyan
-    Write-Host "  Edit it to add your own typo corrections."
+    Write-Host "  It holds optional settings; the defaults need no change."
 } else {
     Write-Host "Config already exists at: $ConfigDest" -ForegroundColor Gray
 }
@@ -84,9 +84,9 @@ Write-Host ""
 Write-Host "CommandFixer installed successfully (PowerShell 5 + 7)." -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:"
-Write-Host "  1. Edit config: $ConfigDest"
-Write-Host "  2. Restart PowerShell (both powershell.exe and pwsh will work)"
-Write-Host "  3. Type a typo and press Enter - it gets corrected automatically"
+Write-Host "  1. Restart PowerShell (both powershell.exe and pwsh will work)"
+Write-Host "  2. Mistype a command and press Enter; accept the suggestion with Y or Enter"
+Write-Host "  Optional settings live in: $ConfigDest"
 Write-Host ""
 Write-Host "Other commands:"
 Write-Host "  commandfixer stats      - show correction history"

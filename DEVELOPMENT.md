@@ -120,11 +120,12 @@ CommandFixer/
 ├── logger/
 │   ├── stats.go             JSONL log writer and stats aggregator
 │   └── stats_test.go
+├── docs/                    The GitHub Pages site
 ├── config.example.json      Starter settings file
 ├── profile-hook.ps1         Hook markers and profile paths, defined once
 ├── install.ps1              One-shot installer
 ├── uninstall.ps1            Uninstaller, with a binary-independent fallback
-├── stamp_version.ps1        Writes VERSION into the docs' version stamps
+├── stamp_version.ps1        Writes VERSION into the site's version stamps
 └── build.ps1                Build, test, lint and coverage runner
 ```
 
@@ -141,7 +142,7 @@ Edit any `.go` file. No hot-reload; rebuild to test changes.
 ```powershell
 go test ./...                        # all packages
 go test ./corrector/...              # single package
-go test -run TestCorrect_Literal ./corrector/  # single test
+go test -run TestSuggest_GitStatus_Typo ./corrector/  # single test
 go test -v ./...                     # verbose output
 ```
 
@@ -214,11 +215,17 @@ correcting things you meant.
 .\commandfixer.exe correct "git sattus"
 ```
 
-If it prints `git sattus` unchanged, check:
+It also writes the correction to the log, so `stats` counts it. If it prints
+the line unchanged, check:
 
-- Config file path: `.\commandfixer.exe stats` should load without error.
-- Config syntax: validate JSON with `Get-Content config.json | ConvertFrom-Json`.
-- Rule content: the `from` value must be a substring of or match the full command.
+- Word count: a line of one word is never corrected; `ipconfg` alone stays,
+  `ipconfg /all` does not.
+- PATH: a first word that resolves as a real command is never renamed. Check
+  with `Get-Command <word>`.
+- Threshold: `similarity_threshold` in `config.json` may be set higher than
+  the typo can reach.
+- Config: `.\commandfixer.exe stats` should load without error; validate the
+  JSON with `Get-Content config.json | ConvertFrom-Json`.
 
 ### Profile hook not firing
 
@@ -254,7 +261,7 @@ review rather than a tool to catch it.
 
 ## Dependency Management
 
-This project has **no third-party dependencies**. Only the Go standard library is used. The `go.sum` file is therefore empty (or absent).
+This project has **no third-party dependencies**. Only the Go standard library is used, so there is no `go.sum` file.
 
 To confirm:
 
@@ -280,11 +287,12 @@ write to a `const`, so while it was one this flag was accepted and silently did
 nothing and the binary kept whatever literal was in the source.
 
 Never write a version anywhere but `VERSION`. The only other copies are the
-stamped tokens in the docs, `<!--VERSION-->1.4.0<!--/VERSION-->`, which
-`stamp_version.ps1` rewrites from `VERSION` across the root `*.md` files and
-everything under `docs/`. It also versions the site's stylesheet and script
-links with each file's content hash. The build runs it first, so a bump needs
-no second edit; to update the docs without building, run it on its own:
+stamped tokens in the site's page footers, which `stamp_version.ps1` rewrites
+from `VERSION` across everything under `docs/`. The markdown documents at the
+root carry no version at all and the script never touches them. It also
+versions the site's stylesheet and script links with each file's content hash.
+The build runs it first, so a bump needs no second edit; to update the site
+without building, run it on its own:
 
 ```powershell
 .\stamp_version.ps1

@@ -59,9 +59,11 @@
         against your buffer. There is nothing to configure to get useful corrections.</p>
       <div class="features">
         <div class="feature"><div class="fnum">01</div><h3>Fuzzy matching</h3><p>Your command is compared to known subcommands by string similarity. A near-miss within a configurable threshold becomes a suggestion; anything too far off is left untouched.</p></div>
-        <div class="feature"><div class="fnum">02</div><h3>Always confirmed</h3><p>A changed command is never run silently. PSReadLine shows the corrected form and executes only after you press Enter to accept it.</p></div>
+        <div class="feature"><div class="fnum">02</div><h3>Always confirmed</h3><p>A changed command is never run silently. PSReadLine shows the corrected form and executes only after you accept it with Y or Enter; any other key keeps the line as you typed it.</p></div>
         <div class="feature"><div class="fnum">03</div><h3>PS7 and PS5 together</h3><p>One install hooks both PowerShell 7 (<code>pwsh</code>) and Windows PowerShell 5 (<code>powershell.exe</code>) profiles at once. Uninstall cleanly removes both.</p></div>
         <div class="feature"><div class="fnum">04</div><h3>Yours, on your machine</h3><p>A single Go binary with no CGO and no service. Config and a JSONL corrections log live under your home directory. Nothing leaves your machine.</p></div>
+        <div class="feature"><div class="fnum">05</div><h3>Real commands left alone</h3><p>Before it renames a command it asks your PATH. A program that is really installed, such as <code>code</code>, is never rewritten to a near neighbour, even when the database has never heard of it.</p></div>
+        <div class="feature"><div class="fnum">06</div><h3>No stray <code>&gt;&gt;</code> prompt</h3><p>A trailing backtick is stripped before the line runs. An unclosed quote or a dangling pipe beeps and stays on the line for you to finish, rather than dropping you into the continuation prompt.</p></div>
       </div>
     </div>
   </section>
@@ -73,7 +75,9 @@
       <p class="section-sub">Subcommands are corrected for these tools out of the
         box. Standalone Windows commands (<code>dir</code>, <code>ipconfig</code>,
         <code>tasklist</code> and many more) are matched by command name; known
-        PowerShell aliases are recognised exactly so they are never "corrected".</p>
+        PowerShell aliases are recognised exactly so they are never "corrected". A
+        line needs two words or more: <code>ipconfg /all</code> is corrected,
+        <code>ipconfg</code> on its own is left as typed.</p>
       <div class="chips">
         <span class="chip"><b>git</b></span>
         <span class="chip"><b>docker</b></span>
@@ -104,7 +108,7 @@
   <div class="container footer-inner">
     <div>
       <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
-      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.4.0<!--/VERSION-->
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.5.0<!--/VERSION-->
     </div>
     <div class="footer-links">
       <a href="./">Home</a>

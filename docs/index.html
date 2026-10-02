@@ -78,15 +78,15 @@
             <span class="ttl">Windows PowerShell</span>
           </div>
 <pre><span class="term-prompt">PS&gt;</span> git <span class="term-typo">sattus</span>
-<span class="term-muted">CommandFixer: did you mean</span> <span class="term-fix">git status</span> <span class="term-muted">[Y/n]</span> y
+<span class="term-muted">CommandFixer: did you mean:</span> <span class="term-fix">git status</span> <span class="term-muted">[Y/n]</span> y
 <span class="term-ok">On branch main</span>
 <span class="term-muted">nothing to commit, working tree clean</span>
 
-<span class="term-prompt">PS&gt;</span> docker <span class="term-typo">imagse</span>
-<span class="term-muted">CommandFixer: did you mean</span> <span class="term-fix">docker images</span> <span class="term-muted">[Y/n]</span> y
+<span class="term-prompt">PS&gt;</span> npm <span class="term-typo">isntall</span>
+<span class="term-muted">CommandFixer: did you mean:</span> <span class="term-fix">npm install</span> <span class="term-muted">[Y/n]</span> y
 
 <span class="term-prompt">PS&gt;</span> <span class="term-typo">ipconfg</span> /all
-<span class="term-muted">CommandFixer: did you mean</span> <span class="term-fix">ipconfig /all</span> <span class="term-muted">[Y/n]</span> y</pre>
+<span class="term-muted">CommandFixer: did you mean:</span> <span class="term-fix">ipconfig /all</span> <span class="term-muted">[Y/n]</span> y</pre>
         </div>
       </div>
     </div>
@@ -103,7 +103,7 @@
         <div class="panel is-for">
           <h3>It is for you if</h3>
           <ul>
-            <li>You work daily in <b>PowerShell 7 or Windows PowerShell 5</b> and fumble subcommands like <code>git sattus</code> or <code>docker imagse</code>.</li>
+            <li>You work daily in <b>PowerShell 7 or Windows PowerShell 5</b> and fumble subcommands like <code>git sattus</code> or <code>npm isntall</code>.</li>
             <li>You want corrections to be <b>suggested, not silent</b>: it always asks before it runs the fix.</li>
             <li>You want a tool that is <b>local and self-contained</b>, with no account, no telemetry and no background process.</li>
             <li>You are comfortable installing a <b>single binary</b> that hooks your PowerShell profile and can be cleanly removed.</li>
@@ -113,7 +113,7 @@
           <h3>It is not for you if</h3>
           <ul>
             <li>You are on <b>macOS or Linux</b>. CommandFixer targets Windows PowerShell profiles and PSReadLine.</li>
-            <li>You want it to <b>guess intent</b> or invent commands. It only corrects close matches to a known command set.</li>
+            <li>You want it to <b>guess intent</b> or invent commands. It only corrects close matches to a known command set, on lines of two words or more.</li>
             <li>You want <b>fully silent auto-execution</b>. Corrections are confirmed by you, by design.</li>
             <li>You expect a <b>GUI</b>. This is a CLI hook that stays out of your way.</li>
           </ul>
@@ -142,7 +142,7 @@
   <div class="container footer-inner">
     <div>
       <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
-      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.4.0<!--/VERSION-->
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.5.0<!--/VERSION-->
     </div>
     <div class="footer-links">
       <a href="./">Home</a>

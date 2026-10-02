@@ -161,9 +161,9 @@ shaved to 399 and break again on the next edit.
 | `Load` | Success, file not found (`os.IsNotExist`), invalid JSON |
 | `LoadOrDefault` | Success, file not found (returns default), non-not-found error (directory as file path) |
 | `Save` | Success, `MkdirAll` fails (regular file used as parent dir), `os.WriteFile` fails (directory at file path) |
-| `applyDefaults` | `LogFile` empty (set default), `LogFile` non-empty (preserve), `MaxLogLines` zero (set 10000), `MaxLogLines` non-zero (preserve) |
+| `applyDefaults` | `LogFile` empty (set default), `LogFile` non-empty (preserve), `MaxLogLines` zero (set 10000), `MaxLogLines` non-zero (preserve), `SimilarityThreshold` out of range (set 0.6), valid (preserve) |
 
-**Known untestable branch:** `json.MarshalIndent` on a plain `Config` struct cannot return an error. The error check exists as defensive code. Coverage tools will flag it as covered because the function executes but the error path is unreachable in practice.
+**Known untestable branch:** `json.MarshalIndent` on a plain `Config` struct cannot return an error. The error check exists as defensive code and its `return` is never reached, so the coverage report shows it as uncovered: `Save` measures 87.5% for that one statement.
 
 ---
 
@@ -180,7 +180,7 @@ forbids this package from importing anything that reaches outside the process.
 | `New` | Zero threshold (default applied), negative, above one, valid, exactly one |
 | `Suggest` | Empty input, single token, unknown tool, exact subcommand (no correction), too dissimilar, below a custom threshold |
 | Subcommand correction | Typos across git, docker, kubectl and the trailing arguments preserved |
-| Tool-name correction | Mistyped tool alone, mistyped tool plus mistyped subcommand |
+| Tool-name correction | Mistyped tool with a valid subcommand, mistyped tool plus mistyped subcommand |
 | Command aliases | `gti` to `git` regardless of the threshold, with the subcommand then corrected; a `gti` the lookup knows is left alone |
 | Windows subcommand tools | winget, choco, scoop, net, sc, reg, netsh |
 | Windows standalone commands | dir, mkdir, copy, ipconfig, tasklist, arguments preserved, below threshold left alone |
@@ -305,10 +305,11 @@ then quietly disagrees with it. One definition, called from both.
 The `Logger` struct uses `sync.Mutex`. Protect anything new with the existing mutex or a new one. There is no race detector here to catch you (see above), so this is held by review.
 
 **Profile install test fails on CI (no home dir):**
-`DefaultProfilePath()` and `DefaultConfigPath()` call `os.UserHomeDir()`. On headless CI, set `$HOME` before running tests:
+`DefaultProfilePath()` and `DefaultConfigPath()` call `os.UserHomeDir()`, which reads `USERPROFILE` on Windows and `HOME` elsewhere. On a headless runner without one, set it for the run:
 
-```bash
-HOME=/tmp go test ./...
+```powershell
+$env:USERPROFILE = (New-Item -ItemType Directory -Force "$env:TEMP\cf-home").FullName
+go test ./...
 ```
 
 **Test isolation:**

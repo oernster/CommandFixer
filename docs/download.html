@@ -58,7 +58,7 @@
           <div class="n"></div>
           <div>
             <h3>Install</h3>
-            <p><code>.\install.ps1</code> copies the binary to <code>%LOCALAPPDATA%\CommandFixer\</code>, adds it to your user PATH, writes a starter config and hooks both the PS7 and PS5 profiles.</p>
+            <p><code>.\install.ps1</code> copies the binary to <code>%LOCALAPPDATA%\CommandFixer\</code>, adds it to your user PATH, writes a starter config if you have none and hooks both the PS7 and PS5 profiles.</p>
           </div>
         </div>
         <div class="step">
@@ -85,7 +85,7 @@ cd commandfixer
 <span class="c"># Install the hook for PowerShell 7 and Windows PowerShell 5</span>
 .\install.ps1
 
-<span class="c"># Check a correction by hand (no hook needed)</span>
+<span class="c"># Check a correction by hand (no hook needed; it is logged too)</span>
 commandfixer correct <span class="p">"git sattus"</span>   <span class="c"># prints: git status</span>
 
 <span class="c"># See how many corrections it has made</span>
@@ -98,7 +98,7 @@ commandfixer stats</pre>
   <div class="container footer-inner">
     <div>
       <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
-      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.4.0<!--/VERSION-->
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.5.0<!--/VERSION-->
     </div>
     <div class="footer-links">
       <a href="./">Home</a>
