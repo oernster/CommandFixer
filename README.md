@@ -198,6 +198,7 @@ commandfixer correct "git sattus"
 - [ARCHITECTURE.md](ARCHITECTURE.md) - system design, module breakdown, data flow
 - [TESTING.md](TESTING.md) - testing strategy, coverage requirements, how to run tests
 - [TECH_DEBT.md](TECH_DEBT.md) - what is still open, what is deliberately left and what only looks like debt
+- [`DECISIONS-TRADEOFFS.md`](DECISIONS-TRADEOFFS.md) sets out the decisions CommandFixer rests on, with what each one gains and what it costs.
 
 ---
 
