@@ -282,8 +282,9 @@ nothing and the binary kept whatever literal was in the source.
 Never write a version anywhere but `VERSION`. The only other copies are the
 stamped tokens in the docs, `<!--VERSION-->1.4.0<!--/VERSION-->`, which
 `stamp_version.ps1` rewrites from `VERSION` across the root `*.md` files and
-everything under `docs/`. The build runs it first, so a bump needs no second
-edit; to update the docs without building, run it on its own:
+everything under `docs/`. It also versions the site's stylesheet and script
+links with each file's content hash. The build runs it first, so a bump needs
+no second edit; to update the docs without building, run it on its own:
 
 ```powershell
 .\stamp_version.ps1

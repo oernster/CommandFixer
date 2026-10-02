@@ -11,6 +11,11 @@
 # every build, so a release cannot ship a site naming the previous version,
 # which is exactly what happened when 1.4.0 was first committed.
 #
+# The site's local stylesheet and script links also carry their file's content
+# hash, as styles.css?v=<hash>. GitHub Pages lets a browser keep a stylesheet
+# for ten minutes, so a fresh page could otherwise be drawn with the old one;
+# a changed file is a new address instead.
+#
 # Usage, from the repository root:
 #
 #     .\stamp_version.ps1
@@ -25,6 +30,42 @@ $docsDir     = Join-Path $PSScriptRoot 'docs'
 $versionShape = '^\d+\.\d+\.\d+$'
 $token        = '(?<open><!--VERSION-->).*?(?<close><!--/VERSION-->)'
 $bom          = [System.Text.UTF8Encoding]::new($true).GetPreamble()
+
+# A local stylesheet or script link: the path, any query it already carries
+# (replaced), then any fragment (kept). The hash is the first
+# $assetHashLength hex characters of the file's SHA-256.
+$assetLink       = '(?<attr>\b(?:href|src)=)(?<quote>["''])(?<path>[^"''?#]+\.(?:css|js))(?:\?[^"''#]*)?(?<fragment>#[^"'']*)?\k<quote>'
+$assetHashLength = 10
+
+# The hash a link carries, over the file's bytes with CRLF read as LF, so a
+# Windows checkout and the LF blob GitHub serves agree. A link to a missing
+# file stops the stamp rather than hash nothing.
+function Get-AssetHash([string]$path) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "A site page links $path, which does not exist; nothing hashed."
+    }
+    # Latin-1 maps every byte to one character, so the CRLF swap is exact.
+    $latin1 = [System.Text.Encoding]::GetEncoding('iso-8859-1')
+    $bytes = $latin1.GetBytes($latin1.GetString([System.IO.File]::ReadAllBytes($path)).Replace("`r`n", "`n"))
+    $digest = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+    (-join ($digest | ForEach-Object { $_.ToString('x2') })).Substring(0, $assetHashLength)
+}
+
+# Puts each relative link's hash on it, resolved against the page's own folder.
+# Remote, protocol-relative and root-absolute links are not this site's files
+# and are left alone.
+function Add-AssetHashes([string]$text, [string]$folder) {
+    [regex]::Replace($text, $assetLink, {
+        param($link)
+        $path = $link.Groups['path'].Value
+        if ($path.StartsWith('/') -or $path.Contains(':')) {
+            return $link.Value
+        }
+        $quote = $link.Groups['quote'].Value
+        '{0}{1}{2}?v={3}{4}{1}' -f $link.Groups['attr'].Value, $quote, $path,
+            (Get-AssetHash (Join-Path $folder $path)), $link.Groups['fragment'].Value
+    })
+}
 
 if (-not (Test-Path -LiteralPath $versionFile)) {
     Write-Host "  No VERSION file; nothing stamped." -ForegroundColor Yellow
@@ -52,15 +93,25 @@ foreach ($file in $files) {
 
     $text = [System.IO.File]::ReadAllText($file.FullName, $encoding)
     $stamped = [regex]::Replace($text, $token, "`${open}$version`${close}")
-    if ($stamped -ne $text) {
-        [System.IO.File]::WriteAllText($file.FullName, $stamped, $encoding)
-        Write-Host "  Stamped $version into $(Resolve-Path -Relative $file.FullName)"
+    # Only the site's pages link stylesheets and scripts.
+    $linked = $stamped
+    if ($file.Extension -eq '.html') {
+        $linked = Add-AssetHashes $stamped $file.DirectoryName
+    }
+    if ($linked -ne $text) {
+        [System.IO.File]::WriteAllText($file.FullName, $linked, $encoding)
+        if ($stamped -ne $text) {
+            Write-Host "  Stamped $version into $(Resolve-Path -Relative $file.FullName)"
+        }
+        if ($linked -ne $stamped) {
+            Write-Host "  Stamped asset hashes into $(Resolve-Path -Relative $file.FullName)"
+        }
         $stampedCount++
     }
 }
 
 if ($stampedCount -eq 0) {
-    Write-Host "  Version stamps already read $version." -ForegroundColor Gray
+    Write-Host "  Version stamps already read $version; asset hashes are current." -ForegroundColor Gray
 }
 # An explicit exit code: build.ps1 checks $LASTEXITCODE straight after this runs
 # and would read a stale or empty one as a failure.
