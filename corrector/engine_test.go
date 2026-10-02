@@ -314,3 +314,15 @@ func TestSuggest_ToolNameAndSubcommandTypo_Docker(t *testing.T) {
 		t.Errorf("expected %q, got %q", "docker ps", result)
 	}
 }
+
+// A token one edit from two candidates is a tie on similarity: "imagse" is one
+// deletion from "image" and one transposition from "images". The transposition
+// keeps the length that was typed, so it is the likelier typo and wins.
+func TestSuggest_DockerImagse_PrefersImagesOverImage(t *testing.T) {
+	t.Parallel()
+	e := New(0)
+	result, found := e.Suggest("docker imagse")
+	if !found || result != "docker images" {
+		t.Errorf("expected (%q, true), got (%q, %v)", "docker images", result, found)
+	}
+}

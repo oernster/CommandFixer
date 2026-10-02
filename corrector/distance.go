@@ -5,23 +5,38 @@ package corrector
 // This is self-contained arithmetic over two strings with no notion of
 // commands, tools or thresholds. It is also the part most likely to be
 // swapped for something else (a different edit distance, a weighting for
-// keyboard adjacency), and separating it means that change touches nothing
+// keyboard adjacency); separating it means that change touches nothing
 // else in the package.
 
 // bestMatch returns the candidate most similar to token together with its
 // similarity score in [0, 1]. It returns an empty string and 0 when no
 // candidate has any similarity (or candidates is empty).
+//
+// On a tie the candidate closest in length to token wins, so the answer does not
+// depend on the order of the list. A transposition or a substitution keeps the
+// typed length while a dropped or doubled character changes it, so the
+// length-preserving reading is the likelier typo: "imagse" is one edit from both
+// "image" and "images" yet means the second.
 func bestMatch(token string, candidates []string) (string, float64) {
 	best := ""
 	bestSim := 0.0
 	for _, candidate := range candidates {
 		sim := similarity(token, candidate)
-		if sim > bestSim {
+		closer := sim == bestSim && lengthGap(token, candidate) < lengthGap(token, best)
+		if sim > bestSim || (best != "" && closer) {
 			bestSim = sim
 			best = candidate
 		}
 	}
 	return best, bestSim
+}
+
+// lengthGap is how far apart two strings are in byte length.
+func lengthGap(a, b string) int {
+	if len(a) > len(b) {
+		return len(a) - len(b)
+	}
+	return len(b) - len(a)
 }
 
 // similarity returns a value in [0, 1] representing how alike a and b are,

@@ -118,3 +118,15 @@ func TestSimilarity_AboveDefaultThresholdForStatusTypo(t *testing.T) {
 		t.Errorf("expected similarity > %v for sattus/status, got %v", defaultThreshold, s)
 	}
 }
+
+// On a tie in similarity the candidate closest in length to the token wins,
+// whichever order the candidates arrive in.
+func TestBestMatch_TiePrefersClosestLength(t *testing.T) {
+	t.Parallel()
+	for _, candidates := range [][]string{{"image", "images"}, {"images", "image"}} {
+		got, _ := bestMatch("imagse", candidates)
+		if got != "images" {
+			t.Errorf("candidates %v: expected images, got %q", candidates, got)
+		}
+	}
+}
