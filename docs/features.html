@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CommandFixer features: fuzzy matching, confirmation and coverage</title>
+<meta name="description" content="What CommandFixer does: fuzzy matching against a built-in database of popular CLI tools and the Windows command set, corrections always confirmed and one install for PowerShell 7 and Windows PowerShell 5.">
+<meta name="author" content="Oliver Ernster">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0c1320">
+<link rel="canonical" href="https://ernster.dev/CommandFixer/features.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CommandFixer">
+<meta property="og:title" content="CommandFixer features: fuzzy matching, confirmation and coverage">
+<meta property="og:description" content="What CommandFixer does: fuzzy matching against a built-in database of popular CLI tools and the Windows command set, corrections always confirmed and one install for PowerShell 7 and Windows PowerShell 5.">
+<meta property="og:url" content="https://ernster.dev/CommandFixer/features.html">
+<meta property="og:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="The CommandFixer terminal icon">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="CommandFixer features">
+<meta name="twitter:description" content="What CommandFixer does: fuzzy matching against a built-in database of popular CLI tools and the Windows command set, corrections always confirmed and one install for PowerShell 7 and Windows PowerShell 5.">
+<meta name="twitter:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
+<link rel="icon" type="image/svg+xml" href="assets/commandfixer.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./">
+      <img src="assets/commandfixer.svg" alt="CommandFixer icon">CommandFixer</a>
+    <nav class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="why.html">Why</a>
+      <a href="download.html">Get started</a>
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section id="features">
+    <div class="container">
+      <div class="eyebrow">Features</div>
+      <h2 class="section-title">What CommandFixer does</h2>
+      <p class="section-sub">The short version of what it does and what it knows. It
+        ships its own dictionary rather than asking you to keep one; every correction
+        waits for your approval before it runs.</p>
+    </div>
+  </section>
+
+  <section id="what" class="alt">
+    <div class="container">
+      <div class="eyebrow">How it works</div>
+      <h2 class="section-title">A built-in dictionary, not one you maintain</h2>
+      <p class="section-sub">It used to ask you to list every typo by hand. It
+        now ships a built-in database of popular CLI tools and their valid
+        subcommands, plus the standard Windows command set, fuzzy-matched
+        against your buffer. There is nothing to configure to get useful corrections.</p>
+      <div class="features">
+        <div class="feature"><div class="fnum">01</div><h3>Fuzzy matching</h3><p>Your command is compared to known subcommands by string similarity. A near-miss within a configurable threshold becomes a suggestion; anything too far off is left untouched.</p></div>
+        <div class="feature"><div class="fnum">02</div><h3>Always confirmed</h3><p>A changed command is never run silently. PSReadLine shows the corrected form and executes only after you press Enter to accept it.</p></div>
+        <div class="feature"><div class="fnum">03</div><h3>PS7 and PS5 together</h3><p>One install hooks both PowerShell 7 (<code>pwsh</code>) and Windows PowerShell 5 (<code>powershell.exe</code>) profiles at once. Uninstall cleanly removes both.</p></div>
+        <div class="feature"><div class="fnum">04</div><h3>Yours, on your machine</h3><p>A single Go binary with no CGO and no service. Config and a JSONL corrections log live under your home directory. Nothing leaves your machine.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="coverage">
+    <div class="container">
+      <div class="eyebrow">What it knows</div>
+      <h2 class="section-title">Popular CLI tools and the Windows command set</h2>
+      <p class="section-sub">Subcommands are corrected for these tools out of the
+        box. Standalone Windows commands (<code>dir</code>, <code>ipconfig</code>,
+        <code>tasklist</code> and many more) are matched by command name; known
+        PowerShell aliases are recognised exactly so they are never "corrected".</p>
+      <div class="chips">
+        <span class="chip"><b>git</b></span>
+        <span class="chip"><b>docker</b></span>
+        <span class="chip"><b>kubectl</b></span>
+        <span class="chip"><b>npm</b></span>
+        <span class="chip"><b>yarn</b></span>
+        <span class="chip"><b>cargo</b></span>
+        <span class="chip"><b>go</b></span>
+        <span class="chip"><b>pip</b></span>
+        <span class="chip"><b>terraform</b></span>
+        <span class="chip"><b>helm</b></span>
+        <span class="chip"><b>az</b></span>
+        <span class="chip"><b>aws</b></span>
+        <span class="chip"><b>gcloud</b></span>
+        <span class="chip"><b>winget</b></span>
+        <span class="chip"><b>choco</b></span>
+        <span class="chip"><b>scoop</b></span>
+        <span class="chip"><b>net</b></span>
+        <span class="chip"><b>sc</b></span>
+        <span class="chip"><b>reg</b></span>
+        <span class="chip"><b>netsh</b></span>
+        <span class="chip">+ Windows commands</span>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="container footer-inner">
+    <div>
+      <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.4.0<!--/VERSION-->
+    </div>
+    <div class="footer-links">
+      <a href="./">Home</a>
+      <a href="features.html">Features</a>
+      <a href="why.html">Why</a>
+      <a href="download.html">Get started</a>
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+      <a href="https://ernster.dev/">Project hub</a>
+      <a href="https://www.crankthecode.com/">crankthecode.com</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

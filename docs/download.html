@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started with CommandFixer: build, install, restart</title>
+<meta name="description" content="Build CommandFixer, install the hook for PowerShell 7 and Windows PowerShell 5 per-user with no administrator rights, then restart PowerShell. Free, with no paid tier.">
+<meta name="author" content="Oliver Ernster">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0c1320">
+<link rel="canonical" href="https://ernster.dev/CommandFixer/download.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CommandFixer">
+<meta property="og:title" content="Get started with CommandFixer: build, install, restart">
+<meta property="og:description" content="Build CommandFixer, install the hook for PowerShell 7 and Windows PowerShell 5 per-user with no administrator rights, then restart PowerShell. Free, with no paid tier.">
+<meta property="og:url" content="https://ernster.dev/CommandFixer/download.html">
+<meta property="og:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="The CommandFixer terminal icon">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Get started with CommandFixer">
+<meta name="twitter:description" content="Build CommandFixer, install the hook for PowerShell 7 and Windows PowerShell 5 per-user with no administrator rights, then restart PowerShell. Free, with no paid tier.">
+<meta name="twitter:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
+<link rel="icon" type="image/svg+xml" href="assets/commandfixer.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./">
+      <img src="assets/commandfixer.svg" alt="CommandFixer icon">CommandFixer</a>
+    <nav class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="why.html">Why</a>
+      <a href="download.html">Get started</a>
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section id="start">
+    <div class="container">
+      <div class="eyebrow">Get started</div>
+      <h2 class="section-title">Build, install, restart</h2>
+      <p class="section-sub">CommandFixer is a Go program with no external
+        dependencies. Clone it, build the binary and run the installer. It hooks
+        your profile per-user with no administrator rights.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Build</h3>
+            <p>Run <code>.\build.ps1 -Test</code> to run the tests and build; <code>go build -o commandfixer.exe .</code> works directly too.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Install</h3>
+            <p><code>.\install.ps1</code> copies the binary to <code>%LOCALAPPDATA%\CommandFixer\</code>, adds it to your user PATH, writes a starter config and hooks both the PS7 and PS5 profiles.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Restart PowerShell</h3>
+            <p>Open a fresh session so the profile hook loads. Now mistype a command and press Enter: the correction appears before it runs.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h3>Uninstall any time</h3>
+            <p><code>.\uninstall.ps1</code> removes the hook from both profiles, deleting the binary and its PATH entry while keeping your config and log. Add <code>-RemoveConfig</code> to remove those too.</p>
+          </div>
+        </div>
+      </div>
+      <div class="codeblock">
+<pre><span class="c"># Clone, test and build</span>
+git clone https://github.com/oernster/commandfixer
+cd commandfixer
+.\build.ps1 <span class="p">-Test</span>
+
+<span class="c"># Install the hook for PowerShell 7 and Windows PowerShell 5</span>
+.\install.ps1
+
+<span class="c"># Check a correction by hand (no hook needed)</span>
+commandfixer correct <span class="p">"git sattus"</span>   <span class="c"># prints: git status</span>
+
+<span class="c"># See how many corrections it has made</span>
+commandfixer stats</pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="support" class="alt">
+    <div class="container">
+      <div class="eyebrow">Support</div>
+      <h2 class="section-title">Supporting CommandFixer</h2>
+      <p class="section-sub">CommandFixer is free and stays free. There is no paid tier, no licence key and no
+        feature held back behind a donation. If it has saved you time or simply been useful, a
+        contribution supports its maintenance and continued development.</p>
+      <div class="cta">
+        <a class="btn btn-ghost btn-donate" href="https://www.paypal.com/ncp/payment/7B63G27P2966Y"><img src="donate.png" alt="">Donate</a>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="container footer-inner">
+    <div>
+      <strong>CommandFixer</strong>: PowerShell command autocorrect for Windows<br>
+      (c) Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->1.4.0<!--/VERSION-->
+    </div>
+    <div class="footer-links">
+      <a href="./">Home</a>
+      <a href="features.html">Features</a>
+      <a href="why.html">Why</a>
+      <a href="download.html">Get started</a>
+      <a href="https://github.com/oernster/commandfixer">GitHub</a>
+      <a href="https://ernster.dev/">Project hub</a>
+      <a href="https://www.crankthecode.com/">crankthecode.com</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
