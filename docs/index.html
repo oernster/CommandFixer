@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CommandFixer: PowerShell Command Autocorrect for Windows</title>
-<meta name="description" content="CommandFixer is a lightweight Go binary that auto-corrects your common typing mistakes in PowerShell before commands execute. Fuzzy-matches typos against a built-in database of popular CLI tools, prompts for confirmation, then runs the fix. Local-first, no service, milliseconds.">
+<meta name="description" content="CommandFixer is a lightweight Go binary that auto-corrects your common typing mistakes in PowerShell before commands execute. Fuzzy-matches typos against a built-in database of popular CLI tools, prompts for confirmation, then runs the fix. Local-first, no service.">
 <meta name="keywords" content="powershell, autocorrect, command line, typo, git, docker, kubectl, PSReadLine, Windows, Go, local-first, CLI, developer tools">
 <meta name="author" content="Oliver Ernster">
 <meta name="robots" content="index, follow">
@@ -21,7 +21,7 @@
 <meta property="og:image:alt" content="The CommandFixer terminal icon">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="CommandFixer: PowerShell Command Autocorrect">
-<meta name="twitter:description" content="A lightweight Go binary that fixes your PowerShell typos before they run. Local-first, no service, milliseconds.">
+<meta name="twitter:description" content="A lightweight Go binary that fixes your PowerShell typos before they run. Local-first, no service.">
 <meta name="twitter:image" content="https://ernster.dev/CommandFixer/assets/commandfixer.png">
 <link rel="icon" type="image/svg+xml" href="assets/commandfixer.svg">
 <link rel="stylesheet" href="styles.css?v=0f7751e628">
@@ -55,7 +55,8 @@
         <a class="btn btn-ghost" href="download.html">Get started</a>
       </div>
       <p class="release-note">No system-wide keyboard hooks. No background
-        service. The binary runs in milliseconds.</p>
+        service. The binary runs once each time you press Enter on a command,
+        then exits.</p>
       <div class="badges">
         <span>Local-first</span>·<span>PowerShell 7 + Windows PowerShell 5</span>
         ·<span>Single Go binary, no CGO</span>·<span>GPL-3.0</span>

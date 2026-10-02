@@ -13,7 +13,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module design.
 
 The floor is the level the suite already holds, not an aspiration. A number
 picked from ambition gets lowered the first time it blocks someone, which
-teaches everyone that the gate is advisory. The current position:
+teaches everyone that the gate is advisory. The per-package figures below are a
+snapshot from one run, not a gate; only the total floor above is enforced:
 
 | Package | Coverage |
 |---------|----------|
@@ -24,8 +25,8 @@ teaches everyone that the gate is advisory. The current position:
 | `main` | 65.5% |
 | **total** | **83.9%** |
 
-`corrector` is at 100% because it is pure computation over strings with nothing
-to arrange. `main` is lowest because `cmdInstall` and `cmdUninstall` write to a
+`corrector` reached 100% in that run because it is pure computation over strings
+with nothing to arrange. `main` is lowest because `cmdInstall` and `cmdUninstall` write to a
 real user's PowerShell profile; the parts of them that are exercised are the
 parts that can be pointed at a temporary file.
 

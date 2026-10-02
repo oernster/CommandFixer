@@ -260,7 +260,7 @@ type Logger struct {
 **Key design decisions:**
 
 - **JSONL format** (one JSON object per line). Each entry is self-contained; the file can be parsed line by line without loading the whole thing. Tolerant of partial writes (malformed lines are skipped in `ReadStats`).
-- **Append-only writes** via `os.O_APPEND`. No seek, no overwrite - safe for concurrent invocations (multiple PS windows).
+- **Append-only writes** via `os.O_APPEND`. Each entry is one write of one line, with no seek and no overwrite, so separate invocations (multiple PS windows) add lines rather than rewrite the file. Nothing locks the file across processes.
 - **`sync.Mutex`** inside Logger for safe concurrent use within one process.
 - **`ReadStats` returns empty stats (not error) for missing file.** First run before any correction has occurred should not fail.
 

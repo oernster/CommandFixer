@@ -152,7 +152,7 @@ CommandFixer hooks into **PSReadLine** (built into both PowerShell 7 and Windows
 4. If there is a suggestion, PowerShell shows it and waits for you to confirm.
 5. The corrected command executes only if you accept it.
 
-No system-wide keyboard hooks. No persistent service required. The binary runs in milliseconds.
+No system-wide keyboard hooks. No persistent service required. The binary runs once each time you press Enter on a command, then exits.
 
 ---
 

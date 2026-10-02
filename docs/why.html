@@ -60,7 +60,7 @@
         at a prompt that can delete things is a tool you eventually uninstall. The same restraint
         shapes the scope: it corrects near-misses of commands it knows and never invents intent.</p>
       <p>What works now is a single Go binary with no CGO, no system-wide keyboard hook and no
-        background service, running in milliseconds only in the instant it is needed. One
+        background service, running only when you press Enter on a command. One
         per-user install hooks both PowerShell 7 and Windows PowerShell 5 profiles with no
         administrator rights; config and a JSONL corrections log live under your home directory
         and uninstalling removes the hook cleanly while leaving your data yours.</p>
