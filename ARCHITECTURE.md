@@ -166,7 +166,7 @@ matching logic and changing the metric never touches either:
 |------|-------|
 | `database.go` | The data: known tools and their subcommands, the Windows standalone commands, the habitual-typo aliases |
 | `engine.go` | The policy: what to correct, in what order and when to leave a command alone |
-| `distance.go` | The metric: Damerau-Levenshtein distance and the similarity score derived from it |
+| `distance.go` | The metric: Damerau-Levenshtein distance, the similarity score derived from it and the pick of the closest candidate in a list |
 
 **Data structures:**
 
@@ -187,6 +187,7 @@ type Engine struct {
 - **An exact match is never "corrected".** A token that already appears in the database is left alone, which is why the PowerShell POSIX-style aliases are listed explicitly: `ls` is one insertion from `cls` and would otherwise be rewritten to it.
 - **A real command is never renamed either.** Before an alias or a tool-name correction the engine asks its `CommandLookup` whether the first token runs as a command; if it does, the line is left alone. A `gti` that is really installed is a command, not a typo of `git`. Without it `code` became `mode`, `node` became `mode` and `tar` became `start`, because the database cannot list every program a machine has. The lookup guards the first token only: `git sattus` is still corrected, though `git` is plainly on PATH. An engine from `New` knows no commands beyond the database; `main` supplies the real lookup through `WithCommandLookup`.
 - **Damerau-Levenshtein rather than plain Levenshtein**, so a transposition counts as one edit. Typing mistakes are mostly transpositions (`psuh`, `gti`); plain Levenshtein scores those as two.
+- **A tie within one list goes to the candidate closest in length** to the typed token, so the answer never depends on the order of the list. A transposition or a substitution keeps the typed length while a dropped or doubled letter changes it, so the same-length reading is the likelier typo: `docker imagse` is one edit from both `image` and `images` and becomes `docker images`. This is `bestMatch` in `distance.go`; the tie between the tool list and the Windows list described above still goes to the CLI tool.
 - **The engine is pure computation over strings**: no filesystem, no environment, no clock. That is why its tests are a plain table with no fixture; `structural_test.go` enforces it rather than trusting it.
 
 **Exported functions:**

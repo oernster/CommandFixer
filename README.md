@@ -87,7 +87,7 @@ Everything is per user, so no administrator rights are needed. Then **restart Po
 
 The uninstaller:
 - Removes the hook from both PS7 (`Documents\PowerShell\profile.ps1`) and PS5 (`Documents\WindowsPowerShell\profile.ps1`)
-- Removes the binary from `%LOCALAPPDATA%\CommandFixer\`
+- Deletes the `%LOCALAPPDATA%\CommandFixer\` folder, binary included
 - Removes that directory from your user `PATH`
 - Keeps your config and log at `%USERPROFILE%\.typo-fixer\` (data is yours)
 

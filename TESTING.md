@@ -23,7 +23,7 @@ snapshot from one run, not a gate; only the total floor above is enforced:
 | `logger` | 91.4% |
 | `shell` | 87.7% |
 | `main` | 65.5% |
-| **total** | **83.9%** |
+| **total** | **84.1%** |
 
 `corrector` reached 100% in that run because it is pure computation over strings
 with nothing to arrange. `main` is lowest because `cmdInstall` and `cmdUninstall` write to a
@@ -97,7 +97,7 @@ The last line is the one the gate reads:
 github.com/oernster/commandfixer/corrector/engine.go:Suggest           100.0%
 github.com/oernster/commandfixer/main.go:cmdInstall                     36.0%
 ...
-total:                                                                  83.9%
+total:                                                                  84.1%
 ```
 
 Note the quoting. Unquoted, PowerShell splits `-coverprofile=coverage.out` at
@@ -179,13 +179,14 @@ forbids this package from importing anything that reaches outside the process.
 |----------|--------|
 | `New` | Zero threshold (default applied), negative, above one, valid, exactly one |
 | `Suggest` | Empty input, single token, unknown tool, exact subcommand (no correction), too dissimilar, below a custom threshold |
-| Subcommand correction | Typos across git, docker, kubectl and the trailing arguments preserved |
+| Subcommand correction | Typos across git, docker, kubectl and the trailing arguments preserved; `docker imagse` becomes `docker images`, not `docker image` |
 | Tool-name correction | Mistyped tool with a valid subcommand, mistyped tool plus mistyped subcommand |
 | Command aliases | `gti` to `git` regardless of the threshold, with the subcommand then corrected; a `gti` the lookup knows is left alone |
 | Windows subcommand tools | winget, choco, scoop, net, sc, reg, netsh |
 | Windows standalone commands | dir, mkdir, copy, ipconfig, tasklist, arguments preserved, below threshold left alone |
 | PowerShell aliases | `ls` never becomes `cls`; the alias set is never corrected |
 | Command lookup | A known command is not renamed (`code` stays, never `mode`); without the lookup it is; a known tool's subcommand is still corrected; an unknown typo still is; `WithCommandLookup` copies, keeps the threshold and ignores nil |
+| `bestMatch` | A tie on similarity goes to the candidate closest in length, in either list order |
 | `similarity` | Equal strings, empty strings, wholly different, either side of the default threshold |
 | `damerauLevenshtein` | Both empty, one empty, equal, single deletion, known distance, adjacent transposition |
 

@@ -160,9 +160,13 @@ go build -o commandfixer.exe .
 
 ```powershell
 .\commandfixer.exe install
-# Restart PowerShell or dot-source the profile:
-. $PROFILE
+# Restart PowerShell or dot-source the profile the hook was written to:
+. $PROFILE.CurrentUserAllHosts
 ```
+
+The hook goes into the all-hosts profile (`profile.ps1`), not the one plain
+`$PROFILE` names (`Microsoft.PowerShell_profile.ps1`), so dot-sourcing
+`$PROFILE` loads nothing of CommandFixer's.
 
 Type `git sattus` and press Enter. You should see the correction message.
 
@@ -231,14 +235,14 @@ the line unchanged, check:
 
 ```powershell
 # Check the profile exists and contains the hook:
-Get-Content $PROFILE | Select-String "CommandFixer"
+Get-Content $PROFILE.CurrentUserAllHosts | Select-String "CommandFixer"
 
 # Re-install. install alone leaves an existing hook untouched, so remove it first:
 .\commandfixer.exe uninstall
 .\commandfixer.exe install
 
 # Reload profile in current session:
-. $PROFILE
+. $PROFILE.CurrentUserAllHosts
 ```
 
 ### View the log

@@ -73,6 +73,19 @@ the length of the longer word.
   close as it looks.
 - **Costs:** none recorded.
 
+### A tie goes to the reading that keeps the typed length
+
+When a typed word is equally close to two names in the same list, the name
+nearest to it in length wins. A swapped or wrong letter keeps the length that
+was typed, while a dropped or doubled one changes it, so the same-length
+reading is the likelier slip.
+
+- **Rather than:** letting the order of the list decide.
+- **Gains:** the answer no longer depends on how the list happens to be
+  ordered; imagse becomes images rather than image.
+- **Costs:** when the slip really was a dropped or doubled letter and the
+  scores tie, the other name is offered.
+
 ### One threshold the user can tune
 
 A match must reach one similarity threshold to be offered. The settings can
