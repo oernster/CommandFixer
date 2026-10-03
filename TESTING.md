@@ -21,9 +21,9 @@ snapshot from one run, not a gate; only the total floor above is enforced:
 | `corrector` | 100% |
 | `config` | 92.1% |
 | `logger` | 91.4% |
-| `shell` | 87.7% |
+| `shell` | 89.5% |
 | `main` | 65.5% |
-| **total** | **84.1%** |
+| **total** | **84.7%** |
 
 `corrector` reached 100% in that run because it is pure computation over strings
 with nothing to arrange. `main` is lowest because `cmdInstall` and `cmdUninstall` write to a
@@ -97,7 +97,7 @@ The last line is the one the gate reads:
 github.com/oernster/commandfixer/corrector/engine.go:Suggest           100.0%
 github.com/oernster/commandfixer/main.go:cmdInstall                     36.0%
 ...
-total:                                                                  84.1%
+total:                                                                  84.7%
 ```
 
 Note the quoting. Unquoted, PowerShell splits `-coverprofile=coverage.out` at
@@ -131,6 +131,8 @@ Each package has a co-located `_test.go` file in the **same package** (white-box
 | `corrector/lookup_test.go` | That a first token the command lookup knows is never renamed |
 | `corrector/distance_test.go` | The string metric alone |
 | `shell/powershell_test.go` | The hook snippet, the profile paths and the read-only operations |
+| `shell/documents_test.go` | Where the profiles go, with the Documents folder handed in, a moved one included |
+| `shell/documents_windows_test.go` | The real Documents known-folder lookup (Windows only) |
 | `shell/install_test.go` | The operations that change a user's profile |
 | `shell/markers_test.go` | That the Go markers and paths still match `profile-hook.ps1` |
 | `shell/architecture_test.go` | That the snippet shown in `ARCHITECTURE.md` is exactly what `ProfileSnippet` generates |
@@ -201,6 +203,9 @@ forbids this package from importing anything that reaches outside the process.
 | Function | Branch |
 |----------|--------|
 | `ProfileSnippet` | Returns string with both markers and binary path; matches the block shown in `ARCHITECTURE.md` |
+| `resolveDocumentsDir` | Known folder used (a moved, OneDrive-style folder), lookup failed (home fallback), lookup empty (home fallback), home not consulted when the lookup answers, both fail (error wrapped) |
+| `profilePathUnder` | Both shells' profiles under a moved Documents folder |
+| `knownDocumentsFolder` | Real lookup returns an existing absolute directory; `DefaultProfilePath` sits under it (Windows only) |
 | `Install` | Fresh profile (created from scratch), existing profile appended, existing profile without trailing newline, already installed (`ErrAlreadyInstalled`), parent dirs created |
 | `Uninstall` | Snippet removed, existing content preserved, not installed (`ErrNotInstalled`), file not found (error) |
 | `IsInstalled` | True (after install), false (no snippet), false (file missing - nil error) |
@@ -253,7 +258,8 @@ CommandFixer is designed to avoid mocking:
 
 - **File I/O**: All file-dependent functions accept a `path string` parameter. Tests pass `t.TempDir()` paths. No mocking framework needed.
 - **`os.Executable()`**: Returns the test binary path in test context. Fine for verifying profile content.
-- **`os.UserHomeDir()`**: Called in `DefaultConfigDir/Path` and `DefaultProfilePath`. These are only tested for format (suffix/contains), not for exact value. No mocking needed.
+- **`os.UserHomeDir()`**: Called in `DefaultConfigDir/Path`; `DefaultProfilePath` calls it only as the fallback when Windows cannot say where Documents is. These are tested for format (suffix/contains), not for exact value. No mocking needed.
+- **The Documents folder**: `resolveDocumentsDir` takes the known-folder lookup and the home lookup as plain functions, so `documents_test.go` hands it a moved folder such as `D:\OneDrive - Contoso\Dokumente`. That is how the moved-folder case is tested; no machine it has run on has a moved Documents folder.
 - **Time**: `logger.Log` timestamps are checked via before/after bounds in tests, not exact values.
 - **The correction engine**: nothing to mock. It takes a string and returns a string, so its tests are direct calls. `structural_test.go` keeps it that way.
 
@@ -306,7 +312,7 @@ then quietly disagrees with it. One definition, called from both.
 The `Logger` struct uses `sync.Mutex`. Protect anything new with the existing mutex or a new one. There is no race detector here to catch you (see above), so this is held by review.
 
 **Profile install test fails on CI (no home dir):**
-`DefaultProfilePath()` and `DefaultConfigPath()` call `os.UserHomeDir()`, which reads `USERPROFILE` on Windows and `HOME` elsewhere. On a headless runner without one, set it for the run:
+`DefaultConfigPath()` calls `os.UserHomeDir()`, as does `DefaultProfilePath()` when the Documents lookup fails; it reads `USERPROFILE` on Windows and `HOME` elsewhere. On a headless runner without one, set it for the run:
 
 ```powershell
 $env:USERPROFILE = (New-Item -ItemType Directory -Force "$env:TEMP\cf-home").FullName

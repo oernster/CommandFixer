@@ -4,8 +4,8 @@
 #
 #     . (Join-Path $PSScriptRoot 'profile-hook.ps1')
 #
-# The marker strings and the profile paths also exist in Go, in
-# shell/powershell.go, and they have to: the binary writes the hook, and this
+# The marker strings and the profile paths also exist in Go (in
+# shell/powershell.go) and they have to: the binary writes the hook; this
 # file is what removes it when the binary is already gone. Two languages cannot
 # share one literal, so shell/markers_test.go reads THIS file and fails if the
 # two ever disagree. That is the point of the exercise. A marker changed on one
@@ -22,6 +22,23 @@ $CommandFixerConfigDir  = "$env:USERPROFILE\.typo-fixer"
 $CommandFixerSnippetStart = '# CommandFixer Integration - DO NOT EDIT'
 $CommandFixerSnippetEnd   = '# End CommandFixer Integration'
 
+function Get-CommandFixerDocumentsFolder {
+    <#
+    .SYNOPSIS
+        The folder PowerShell keeps its profiles under.
+    .DESCRIPTION
+        Asked of Windows rather than built from $HOME, because a Documents
+        folder moved by OneDrive folder backup or redirection moves the
+        profiles with it. $HOME\Documents is only the fallback when Windows
+        gives no answer, the same rule as documentsDir in Go.
+    #>
+    $documents = [Environment]::GetFolderPath('MyDocuments')
+    if (-not $documents) {
+        $documents = Join-Path $HOME 'Documents'
+    }
+    $documents
+}
+
 function Get-CommandFixerProfilePaths {
     <#
     .SYNOPSIS
@@ -31,8 +48,9 @@ function Get-CommandFixerProfilePaths {
         the same order and the same locations as shell.AllProfilePaths in Go.
         Both are covered because the hook is installed into both.
     #>
+    $documents = Get-CommandFixerDocumentsFolder
     @(
-        (Join-Path $HOME 'Documents\PowerShell\profile.ps1'),
-        (Join-Path $HOME 'Documents\WindowsPowerShell\profile.ps1')
+        (Join-Path $documents 'PowerShell\profile.ps1'),
+        (Join-Path $documents 'WindowsPowerShell\profile.ps1')
     )
 }

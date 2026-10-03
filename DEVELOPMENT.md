@@ -114,6 +114,10 @@ CommandFixer/
 ├── shell/
 │   ├── powershell.go        Profile snippet generation and install/uninstall
 │   ├── powershell_test.go   The snippet, the paths, the read-only operations
+│   ├── documents_windows.go Asks Windows where Documents is (Windows only)
+│   ├── documents_other.go   No known folders elsewhere: home\Documents
+│   ├── documents_test.go    Profile paths under a handed-in, moved Documents
+│   ├── documents_windows_test.go The real known-folder lookup
 │   ├── install_test.go      The operations that change a profile
 │   ├── markers_test.go      Go and PowerShell markers still agree
 │   └── architecture_test.go The snippet in ARCHITECTURE.md is the real one

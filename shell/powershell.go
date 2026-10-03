@@ -21,8 +21,8 @@ var ErrAlreadyInstalled = errors.New("CommandFixer already installed in PowerShe
 var ErrNotInstalled = errors.New("CommandFixer not found in PowerShell profile")
 
 // ProfileSnippet returns the PowerShell block that intercepts the Enter key,
-// checks the typed command against the fuzzy-matching engine, and prompts the
-// user to confirm before applying any correction. The handler first verifies
+// checks the typed command against the fuzzy-matching engine; it then prompts
+// the user to confirm before applying any correction. The handler first verifies
 // the binary still exists (Test-Path), so an uninstalled or moved executable
 // fails silently instead of raising an error on every keystroke.
 //
@@ -91,24 +91,64 @@ Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
 `, snippetStart, binaryPath, snippetEnd)
 }
 
-// DefaultProfilePath returns the CurrentUserAllHosts PowerShell 7 profile path.
-// Typically: $HOME\Documents\PowerShell\profile.ps1
-func DefaultProfilePath() (string, error) {
-	home, err := os.UserHomeDir()
+// The CurrentUserAllHosts profile sits in a per-shell folder under Documents.
+// profile-hook.ps1 joins the same names; shell/markers_test.go holds the two
+// sides together.
+const (
+	profileFileName      = "profile.ps1"
+	pwshProfileDir       = "PowerShell"
+	windowsPSProfileDir  = "WindowsPowerShell"
+	documentsFallbackDir = "Documents"
+)
+
+// documentsDir returns the folder PowerShell puts its profiles under.
+//
+// PowerShell takes that folder from Windows' known-folder lookup, not from the
+// home directory, so a Documents folder moved elsewhere (OneDrive folder
+// backup, a redirected network share) moves the profiles with it. Joining
+// $HOME with "Documents" would write the hook where PowerShell never reads it.
+func documentsDir() (string, error) {
+	return resolveDocumentsDir(knownDocumentsFolder, os.UserHomeDir)
+}
+
+// resolveDocumentsDir prefers the known folder and falls back to
+// home\Documents only when the lookup fails or answers with nothing. Both
+// sources are passed in so the choice can be tested with any folder.
+func resolveDocumentsDir(knownFolder, home func() (string, error)) (string, error) {
+	if dir, err := knownFolder(); err == nil && dir != "" {
+		return dir, nil
+	}
+	homeDir, err := home()
 	if err != nil {
 		return "", fmt.Errorf("get home directory: %w", err)
 	}
-	return filepath.Join(home, "Documents", "PowerShell", "profile.ps1"), nil
+	return filepath.Join(homeDir, documentsFallbackDir), nil
+}
+
+// profilePathUnder joins one shell's profile folder onto documents.
+func profilePathUnder(documents, shellDir string) string {
+	return filepath.Join(documents, shellDir, profileFileName)
+}
+
+// profilePath resolves Documents and returns one shell's profile under it.
+func profilePath(shellDir string) (string, error) {
+	documents, err := documentsDir()
+	if err != nil {
+		return "", err
+	}
+	return profilePathUnder(documents, shellDir), nil
+}
+
+// DefaultProfilePath returns the CurrentUserAllHosts PowerShell 7 profile path.
+// Typically: <Documents>\PowerShell\profile.ps1
+func DefaultProfilePath() (string, error) {
+	return profilePath(pwshProfileDir)
 }
 
 // PS5ProfilePath returns the CurrentUserAllHosts Windows PowerShell 5 profile path.
-// Typically: $HOME\Documents\WindowsPowerShell\profile.ps1
+// Typically: <Documents>\WindowsPowerShell\profile.ps1
 func PS5ProfilePath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("get home directory: %w", err)
-	}
-	return filepath.Join(home, "Documents", "WindowsPowerShell", "profile.ps1"), nil
+	return profilePath(windowsPSProfileDir)
 }
 
 // AllProfilePaths returns profile paths for all supported PowerShell versions:

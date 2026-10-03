@@ -201,7 +201,7 @@ type Engine struct {
 
 ---
 
-### `shell` (shell/powershell.go)
+### `shell` (shell/powershell.go, shell/documents_*.go)
 
 Generates and manages the PowerShell profile hook.
 
@@ -211,6 +211,7 @@ Generates and manages the PowerShell profile hook.
 - The snippet is delimited by exact start/end marker strings. This makes install idempotent (detects existing hook) and makes uninstall reliable (removes the exact block).
 - Those markers exist in two languages and have to. The binary writes and removes the block but `uninstall.ps1` must still work when the binary is already gone, so it carries a fallback that strips the block itself. The scripts define their copy once in `profile-hook.ps1`; `shell/markers_test.go` reads that file and fails if the Go constants drift from it. A marker changed on one side only would leave a hook line nothing can find to remove, running on every prompt a user types.
 - The hook snippet appears a second time, in PowerShell Hook Mechanics below, so a reader can see it without installing anything. `shell/architecture_test.go` fails when that copy differs from what `ProfileSnippet` generates; its message carries the block to paste in.
+- `<Documents>` is the folder Windows reports for the user's Documents (`SHGetKnownFolderPath` with `FOLDERID_Documents`, in `shell/documents_windows.go`), not `$HOME\Documents`. A Documents folder moved by OneDrive folder backup or redirection is where PowerShell looks for its profile, so a path built from the home directory would hold a hook nothing reads. `$HOME\Documents` is used only when the lookup fails or returns nothing; off Windows it is always used. `profile-hook.ps1` follows the same rule with `[Environment]::GetFolderPath('MyDocuments')`. The moved-folder case is covered by unit tests with the folder handed in; it has not been run on a machine whose Documents folder has actually moved.
 - `readProfileSafe` treats `os.IsNotExist` as an empty profile. Users who have never set up a PS profile are handled without error.
 - `removeSnippet` handles edge cases: snippet at start (no content before it), snippet at end, missing end marker (truncates from start marker).
 
@@ -219,8 +220,8 @@ Generates and manages the PowerShell profile hook.
 | Function | Description |
 |----------|-------------|
 | `ProfileSnippet(binaryPath)` | Generate the PS block to inject |
-| `DefaultProfilePath()` | `$HOME/Documents/PowerShell/profile.ps1` (PowerShell 7) |
-| `PS5ProfilePath()` | `$HOME/Documents/WindowsPowerShell/profile.ps1` (Windows PowerShell 5) |
+| `DefaultProfilePath()` | `<Documents>\PowerShell\profile.ps1` (PowerShell 7) |
+| `PS5ProfilePath()` | `<Documents>\WindowsPowerShell\profile.ps1` (Windows PowerShell 5) |
 | `AllProfilePaths()` | Both of the above, PowerShell 7 first; what `install` and `uninstall` use without a profile argument |
 | `Install(profilePath, binaryPath)` | Append hook; ErrAlreadyInstalled if present |
 | `Uninstall(profilePath)` | Remove hook; ErrNotInstalled if absent |
@@ -288,6 +289,7 @@ None. CommandFixer uses only the Go standard library:
 | `time` | Log timestamps |
 | `errors` | Sentinel error values |
 | `io/fs` | Telling a missing config file from any other read failure |
+| `syscall`, `unsafe` | Asking Windows where the Documents folder is (Windows builds only) |
 
 Test-only and not linked into the binary: `go/parser` and `go/token` for the
 import-boundary scan, `bufio` for the file-size scan; `regexp` for reading a

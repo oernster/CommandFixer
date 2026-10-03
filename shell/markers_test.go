@@ -86,13 +86,11 @@ func TestProfilePathsMatchTheScripts(t *testing.T) {
 		t.Fatalf("AllProfilePaths: %v", err)
 	}
 
-	// The script joins $HOME with a relative path, so compare the tail rather
-	// than the whole thing: the home directory is the same by construction and
-	// is not what can drift.
+	// Both sides join the Documents folder they resolve at run time with a
+	// relative path, so compare that relative tail: the Documents folder is
+	// held together by TestDocumentsLookupMatchesTheScripts instead.
 	for _, path := range paths {
-		tail := filepath.Join(filepath.Base(filepath.Dir(filepath.Dir(path))),
-			filepath.Base(filepath.Dir(path)),
-			filepath.Base(path))
+		tail := filepath.Join(filepath.Base(filepath.Dir(path)), filepath.Base(path))
 		if !strings.Contains(script, tail) {
 			t.Errorf(
 				"%s does not mention %q, so its fallback would not clean the"+
@@ -100,6 +98,29 @@ func TestProfilePathsMatchTheScripts(t *testing.T) {
 				sharedDefinitions, tail,
 			)
 		}
+	}
+}
+
+// knownFolderCall is how the script asks Windows for the Documents folder, the
+// PowerShell face of the SHGetKnownFolderPath call documentsDir makes.
+const knownFolderCall = "[Environment]::GetFolderPath('MyDocuments')"
+
+func TestDocumentsLookupMatchesTheScripts(t *testing.T) {
+	t.Parallel()
+	script := readSharedDefinitions(t)
+
+	// A script that built the folder from $HOME alone would clean a profile
+	// PowerShell no longer reads once Documents has moved, leaving the hook
+	// the binary wrote in place.
+	if !strings.Contains(script, knownFolderCall) {
+		t.Errorf("%s does not ask Windows for Documents with %s", sharedDefinitions, knownFolderCall)
+	}
+	fallback := "Join-Path $HOME '" + documentsFallbackDir + "'"
+	if !strings.Contains(script, fallback) {
+		t.Errorf(
+			"%s does not fall back to %q as documentsDir does",
+			sharedDefinitions, fallback,
+		)
 	}
 }
 

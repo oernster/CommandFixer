@@ -219,6 +219,8 @@ commandfixer correct "git sattus"
 | `Documents\PowerShell\profile.ps1` | PS7 profile (hook appended here) |
 | `Documents\WindowsPowerShell\profile.ps1` | PS5 profile (hook appended here) |
 
+`Documents` is the folder Windows reports as your Documents folder, the same one PowerShell reads its profile from, so a Documents folder moved by OneDrive folder backup is followed rather than ignored.
+
 ---
 
 ## Testing

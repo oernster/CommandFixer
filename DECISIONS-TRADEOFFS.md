@@ -223,6 +223,20 @@ PowerShell 7 and for Windows PowerShell 5 alike.
 - **Gains:** the same behaviour in whichever PowerShell is opened.
 - **Costs:** a profile file is created for a shell that may never be used.
 
+### Documents as Windows reports it
+
+The profiles are placed under the Documents folder Windows reports, the one
+PowerShell itself reads from; the home directory joined with `Documents` is the
+fallback only.
+
+- **Rather than:** `$HOME\Documents` alone, which is wrong once OneDrive folder
+  backup or redirection has moved Documents.
+- **Gains:** the hook lands where PowerShell looks, wherever Documents lives.
+- **Costs:** a small Windows-only call through `syscall` and `unsafe`, which
+  the rest of the code does without. The moved-folder case is tested with the
+  folder handed in; it has not been run on a machine whose Documents folder
+  has actually moved.
+
 ## Installing and removing
 
 ### Installed for one user
